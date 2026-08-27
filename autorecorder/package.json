@@ -1,0 +1,23 @@
+{
+  "name": "autorecorder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "record": "tsx cli.ts",
+    "record:all": "tsx cli.ts",
+    "record:list": "tsx cli.ts --list",
+    "doctor": "tsx cli.ts --doctor",
+    "doctor:online": "tsx cli.ts --doctor --online",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "^1.51.0",
+    "shiki": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.19.3",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "docsRoot": "https://docs.copilotkit.ai/react-spa",
+  "syncedAt": "2026-08-27T19:16:22.118Z",
+  "pages": {
+    "/react-spa": {
+      "file": "react-spa.md",
+      "sha256": "8553a726b0b22d549e93f6b748e3e87d029889266e93025e0527029a0cb19b4a",
+      "bytes": 8969,
+      "lines": 201,
+      "routes": [
+        "/"
+      ],
+      "status": "ok",
+      "age": 0,
+      "date": "Thu, 27 Aug 2026 19:16:20 GMT"
+    },
+    "/react-spa/using-these-docs": {
+      "file": "react-spa__using-these-docs.md",
+      "sha256": "45a974354414cb5ca1aa83fb6f48e16e1580f571afd4965610bb36131673619a",
+      "bytes": 808,
+      "lines": 13,
+      "routes": [
+        "/using-these-docs"
+      ],
+      "status": "ok",
+      "age": 0,
+      "date": "Thu, 27 Aug 2026 19:16:22 GMT"
+    }
+  },
+  "sitemap": {
+    "fetchedAt": "2026-08-27T19:16:22.118Z",
+    "urlsUnderRoot": 2,
+    "knownUnmapped": []
+  }
+}

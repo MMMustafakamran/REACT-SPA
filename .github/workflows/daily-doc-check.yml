@@ -1,0 +1,274 @@
+name: Daily doc check and recording
+
+# What this job answers every morning: does https://docs.copilotkit.ai/react-spa
+# still say what our snapshot says, and if so, does following it still produce a
+# working app on npm, pnpm and yarn?
+#
+# Those are two different questions and they are deliberately two different
+# jobs. `drift` is cheap, runs first, and on a gating change it notifies and
+# stops — recording a demo against a page that has since moved produces footage
+# that documents nothing, and nobody is watching a 6am run to notice.
+
+on:
+  schedule:
+    # 06:00 UTC daily.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      tracks:
+        description: 'Package managers to run (comma-separated: npm,pnpm,yarn)'
+        required: false
+        default: 'npm,pnpm,yarn'
+      ignore_doc_drift:
+        description: 'Record even if the docs moved'
+        type: boolean
+        required: false
+        default: false
+      use_lockfile:
+        description: 'Install the committed lockfiles instead of re-resolving'
+        type: boolean
+        required: false
+        default: false
+      skip_recording:
+        description: 'Drift check only — no install, no recording'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  # Two runs would fight over :8200 and :5173 on their own runners, but more to
+  # the point a queued nightly behind a manual run tells you nothing new.
+  group: react-spa-doc-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  # ── 0. Is the page still the page we tested? ────────────────────────────
+  drift:
+    name: Doc drift
+    runs-on: ubuntu-latest
+    outputs:
+      run_name: ${{ steps.meta.outputs.run_name }}
+      drifted: ${{ steps.check.outputs.drifted }}
+      gating: ${{ steps.check.outputs.gating }}
+      should_record: ${{ steps.decide.outputs.should_record }}
+      tracks: ${{ steps.meta.outputs.tracks }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve run name and track list
+        id: meta
+        env:
+          TRACKS_INPUT: ${{ inputs.tracks }}
+        run: |
+          echo "run_name=$(node ci/run-name.mjs)" >> "$GITHUB_OUTPUT"
+
+          # Built here rather than in a matrix expression: turning "npm,pnpm"
+          # into a JSON array inline needs three nested fromJSON/format calls
+          # that nobody can read or test. This is one line of node that either
+          # prints valid JSON or fails loudly.
+          TRACKS=$(node -e '
+            const raw = process.env.TRACKS_INPUT || "npm,pnpm,yarn";
+            const known = ["npm", "pnpm", "yarn"];
+            const picked = raw.split(",").map((t) => t.trim()).filter(Boolean);
+            const bad = picked.filter((t) => !known.includes(t));
+            if (bad.length) {
+              console.error(`Unknown track(s): ${bad.join(", ")}`);
+              process.exit(1);
+            }
+            console.log(JSON.stringify(picked.length ? picked : known));
+          ')
+          echo "tracks=$TRACKS" >> "$GITHUB_OUTPUT"
+          echo "Tracks for this run: $TRACKS"
+
+      - name: Check the live docs against doc-snapshot/
+        id: check
+        run: |
+          set +e
+          node ci/check-doc-drift.mjs > drift.txt 2>&1
+          CODE=$?
+          set -e
+          cat drift.txt
+
+          # 0 = clean or prose-only, 2 = gating drift, 1 = the docs site itself
+          # could not be read. The third is not drift and must not be reported
+          # as such.
+          if [ "$CODE" = "2" ]; then
+            echo "drifted=true"  >> "$GITHUB_OUTPUT"
+            echo "gating=true"   >> "$GITHUB_OUTPUT"
+          elif grep -q 'Doc drift' drift.txt; then
+            echo "drifted=true"  >> "$GITHUB_OUTPUT"
+            echo "gating=false"  >> "$GITHUB_OUTPUT"
+          else
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+            echo "gating=false"  >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "## 📄 Doc drift"
+            echo
+            if [ "$CODE" = "1" ]; then
+              echo "⚠️ The docs site could not be read. Drift is **unknown**, not absent."
+              echo
+            fi
+            echo '```'
+            cat drift.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit 0
+
+      - name: Open or update the drift issue
+        if: steps.check.outputs.gating == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = [
+              '`/react-spa` changed in a way that invalidates what we test.',
+              '',
+              'The scaffolds in `Npm/`, `Pnpm/` and `Yarn/` transcribe this page\'s code',
+              'blocks, so a change there means they no longer match what is published.',
+              'Recording was **halted** — clips of a demo that no longer matches the page',
+              'document nothing.',
+              '',
+              '```',
+              fs.readFileSync('drift.txt', 'utf8').trim(),
+              '```',
+              '',
+              '**To clear:** review the diff, run `node ci/check-doc-drift.mjs --update`,',
+              'reconcile the three scaffolds with the new code blocks, then re-run this',
+              'workflow.',
+              '',
+              `_Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}_`,
+            ].join('\n');
+
+            const title = '📄 Doc drift: /react-spa changed';
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'doc-drift',
+            });
+
+            // One issue per drift, reopened by comment rather than duplicated —
+            // a daily job that files a new issue every morning gets muted.
+            const existing = open.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['doc-drift'],
+              });
+            }
+
+      - name: Decide whether to record
+        id: decide
+        run: |
+          SKIP="${{ inputs.skip_recording }}"
+          GATING="${{ steps.check.outputs.gating }}"
+          IGNORE="${{ inputs.ignore_doc_drift }}"
+
+          if [ "$SKIP" = "true" ]; then
+            echo "should_record=false" >> "$GITHUB_OUTPUT"
+            echo "Drift-only run requested." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$GATING" = "true" ] && [ "$IGNORE" != "true" ]; then
+            echo "should_record=false" >> "$GITHUB_OUTPUT"
+            echo "🚨 Recording skipped: the page moved. Issue filed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "should_record=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload drift report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.run_name }}-drift
+          path: drift.txt
+          retention-days: 30
+
+  # ── 1. Does following the page still work? ──────────────────────────────
+  record:
+    name: Record (${{ matrix.track }})
+    needs: drift
+    if: needs.drift.outputs.should_record == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # Never fail-fast: pnpm breaking is not a reason to stop learning whether
+      # npm and yarn work. Which manager fails is itself the finding.
+      fail-fast: false
+      matrix:
+        track: ${{ fromJSON(needs.drift.outputs.tracks) }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm and yarn
+        run: corepack enable
+
+      - name: Install Playwright Chromium and its system dependencies
+        run: |
+          cd autorecorder
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run the pipeline
+        run: |
+          FLAGS="--tracks=${{ matrix.track }}"
+          if [ "${{ inputs.use_lockfile }}" = "true" ]; then
+            FLAGS="$FLAGS --use-lockfile"
+          fi
+          if [ "${{ needs.drift.outputs.drifted }}" = "true" ]; then
+            # The gate already ran in the drift job and let this one start, so
+            # re-deciding here would only re-litigate it.
+            FLAGS="$FLAGS --ignore-doc-drift"
+          fi
+
+          # xvfb: the recorder drives a headed Chromium so the video shows real
+          # browser chrome and the taskbar overlay composites correctly.
+          xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" \
+            node ci/automate.mjs $FLAGS
+
+      - name: Publish the run report
+        if: always()
+        run: |
+          if [ -f autorecorder/videos/RUN_REPORT.md ]; then
+            cat autorecorder/videos/RUN_REPORT.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ${{ matrix.track }} produced no report" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload recordings, sessions and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.drift.outputs.run_name }}-${{ matrix.track }}
+          path: |
+            autorecorder/videos/*.webm
+            autorecorder/videos/RUN_REPORT.*
+            autorecorder/videos/DOC_DRIFT.md
+            autorecorder/videos/logs/**
+          retention-days: 30
+          if-no-files-found: warn

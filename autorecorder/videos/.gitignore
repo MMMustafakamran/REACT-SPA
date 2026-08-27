@@ -1,0 +1,9 @@
+# Recordings are build output, not source.
+#
+# They are reproducible from the code in this folder plus `npm run record`, and
+# versioning them is expensive: 17 clips x ~5MB, rewritten on every re-record,
+# took this repo's .git to 348MB before the history was rewritten to strip them.
+#
+# Publish them as release assets or to a bucket instead of committing them.
+*.webm
+!.gitignore
