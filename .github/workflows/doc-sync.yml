@@ -1,0 +1,110 @@
+name: Doc sync
+
+# The other half of the drift gate.
+#
+# daily-doc-check.yml STOPS when the live docs move, and says so in an issue.
+# It deliberately does not fix anything: rewriting the snapshot is the act of
+# accepting a change as intended, and that is a judgement call, not a nightly
+# side effect. This workflow is the button that issue tells you to press.
+#
+# It opens a PR rather than pushing. The snapshot is the thing every drift
+# comparison is measured against — overwriting it unreviewed would mean a
+# silently-accepted upstream change can never be noticed again.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why this change is being accepted (goes in the PR body)'
+        required: false
+        default: ''
+
+concurrency:
+  group: react-spa-doc-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync doc-snapshot/ to the live docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Recorded before the rewrite: once --update lands, the diff that
+      # justified this PR is gone from the working tree.
+      - name: Capture the drift that is being accepted
+        run: |
+          set +e
+          node ci/check-doc-drift.mjs > drift-before.txt 2>&1
+          echo "exit=$?" 
+          set -e
+          cat drift-before.txt
+
+      - name: Rewrite the snapshot
+        run: node ci/check-doc-drift.mjs --update
+
+      - name: Open a PR if anything changed
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+
+          git add -- doc-snapshot/
+          if git diff --cached --quiet -- doc-snapshot/; then
+            echo "### 📄 Doc sync: nothing to do" >> "$GITHUB_STEP_SUMMARY"
+            echo "The snapshot already matches the live docs." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          BRANCH="doc-sync/${GITHUB_RUN_ID}"
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BRANCH"
+          git commit -m 'chore(docs): sync doc-snapshot/ to the live docs'
+          git push -u origin "$BRANCH"
+
+          {
+            echo 'Accepts the current state of the live docs as the new baseline.'
+            echo
+            if [ -n "${REASON:-}" ]; then
+              echo "**Reason given:** ${REASON}"
+              echo
+            fi
+            echo '### The drift this accepts'
+            echo
+            echo '```'
+            cat drift-before.txt
+            echo '```'
+            echo
+            echo '> ⚠️ Merging this makes the change above invisible to future drift'
+            echo '> checks. Before merging, reconcile the `Npm/`, `Pnpm/` and `Yarn/`'
+            echo '> scaffolds with the new code blocks — they transcribe this page,'
+            echo '> and a snapshot that moves without them means the recordings'
+            echo '> document something the page no longer says.'
+          } > pr-body.md
+
+          gh pr create \
+            --title 'chore(docs): sync doc-snapshot/ to the live docs' \
+            --body-file pr-body.md \
+            --head "$BRANCH" \
+            --base "${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the accepted diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc-sync-drift
+          path: drift-before.txt
+          retention-days: 30
+          if-no-files-found: warn

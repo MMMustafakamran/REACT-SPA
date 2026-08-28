@@ -11,8 +11,17 @@ name: Daily doc check and recording
 
 on:
   schedule:
-    # 06:00 UTC daily.
-    - cron: '0 6 * * *'
+    # 05:27 UTC = 10:27 AM PKT (Asia/Karachi, UTC+5, no DST).
+    #
+    # Not 05:30, and emphatically not 06:00. GitHub's scheduler is best-effort
+    # and shared: on-the-hour and on-the-half-hour are the most contended slots
+    # on the platform, and runs queued there are routinely delayed by hours or
+    # dropped outright. This repo's own history showed a '0 6 * * *' cron firing
+    # at 17:11 UTC. An odd minute is materially more likely to fire near time.
+    #
+    # This still cannot GUARANTEE 10:30 AM PKT — no `schedule:` can. If exact
+    # timing ever matters, drive it externally via repository_dispatch.
+    - cron: '27 5 * * *'
   workflow_dispatch:
     inputs:
       tracks:
@@ -143,9 +152,12 @@ jobs:
               fs.readFileSync('drift.txt', 'utf8').trim(),
               '```',
               '',
-              '**To clear:** review the diff, run `node ci/check-doc-drift.mjs --update`,',
-              'reconcile the three scaffolds with the new code blocks, then re-run this',
-              'workflow.',
+              '**To clear:** review the diff above, then run the **Doc sync** workflow',
+              '(Actions → Doc sync → Run workflow). It rewrites `doc-snapshot/` and opens',
+              'a PR with this diff in the body. Reconcile the three scaffolds with the new',
+              'code blocks on that branch, merge, then re-run this workflow.',
+              '',
+              `_Doc sync: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/workflows/doc-sync.yml_`,
               '',
               `_Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}_`,
             ].join('\n');
