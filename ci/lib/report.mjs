@@ -14,15 +14,39 @@ import { TRACKS, VIDEOS_DIR } from './config.mjs';
  * Recorded per track rather than once, because that is the whole question a
  * three-track run answers: the same source, three resolutions.
  */
+/**
+ * What actually ran -- not what package.json asks for.
+ *
+ * ci/automate.mjs re-resolves from the ranges by default, so a run tests the
+ * newest versions those ranges allow. Reading `pkg.dependencies` reported the
+ * FLOOR of a range rather than the version under test -- a run against
+ * @copilotkit/react-core 1.69.3 reported "^1.69.2". Read the installed tree
+ * instead, keeping the declared range alongside when the two differ.
+ */
+function resolveVersion(dir, pkg, name) {
+  const declared = pkg.dependencies?.[name] ?? pkg.devDependencies?.[name];
+  let installed;
+  try {
+    const manifest = path.join(dir, 'node_modules', ...name.split('/'), 'package.json');
+    installed = JSON.parse(fs.readFileSync(manifest, 'utf8')).version;
+  } catch {
+    // Not installed: a report written before install, or after a failed one.
+  }
+  if (!declared && !installed) return 'n/a';
+  if (!installed) return `${declared} (not installed)`;
+  if (!declared) return installed;
+  return declared === installed ? installed : `${installed} (declared ${declared})`;
+}
+
 function trackVersions() {
   const out = {};
   for (const [name, t] of Object.entries(TRACKS)) {
     try {
       const pkg = JSON.parse(fs.readFileSync(path.join(t.dir, 'package.json'), 'utf8'));
       out[name] = {
-        '@copilotkit/react-core': pkg.dependencies?.['@copilotkit/react-core'] ?? 'n/a',
-        '@copilotkit/runtime': pkg.dependencies?.['@copilotkit/runtime'] ?? 'n/a',
-        react: pkg.dependencies?.react ?? 'n/a',
+        '@copilotkit/react-core': resolveVersion(t.dir, pkg, '@copilotkit/react-core'),
+        '@copilotkit/runtime': resolveVersion(t.dir, pkg, '@copilotkit/runtime'),
+        react: resolveVersion(t.dir, pkg, 'react'),
         vite: pkg.devDependencies?.vite ?? 'n/a',
       };
     } catch {
