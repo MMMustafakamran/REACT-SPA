@@ -66,9 +66,9 @@ jobs:
       should_record: ${{ steps.decide.outputs.should_record }}
       tracks: ${{ steps.meta.outputs.tracks }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -136,7 +136,7 @@ jobs:
 
       - name: Open or update the drift issue
         if: steps.check.outputs.gating == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
@@ -209,7 +209,7 @@ jobs:
 
       - name: Upload drift report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.meta.outputs.run_name }}-drift
           path: drift.txt
@@ -231,9 +231,9 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -274,7 +274,7 @@ jobs:
 
       - name: Upload recordings, sessions and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ needs.drift.outputs.run_name }}-${{ matrix.track }}
           path: |

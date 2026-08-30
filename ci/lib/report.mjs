@@ -6,7 +6,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { TRACKS, VIDEOS_DIR } from './config.mjs';
+import { TRACKS, VIDEO_PREFIX, VIDEOS_DIR } from './config.mjs';
 
 /**
  * What each track actually resolved to.
@@ -56,11 +56,26 @@ function trackVersions() {
   return out;
 }
 
-function listVideos() {
+/**
+ * The clips THIS run produced, not every clip in the folder.
+ *
+ * `videos/` is not emptied between runs, so listing the directory credited a
+ * one-track run with the other two tracks' recordings: a report headed
+ * "Tracks: npm ... FAILED" listed npm, pnpm and yarn clips underneath, none of
+ * which the failed run had made. CI never caught it because a fresh checkout
+ * starts with an empty folder; every local run showed it.
+ *
+ * The recorder names files `<VIDEO_PREFIX>-<track>-NN-<name>.webm`, so the
+ * track prefix is the filter. A track that recorded nothing contributes
+ * nothing, which is the honest answer.
+ */
+function listVideos(tracks) {
+  const wanted = (tracks ?? []).map((t) => `${VIDEO_PREFIX}-${t}-`);
   const videos = [];
   try {
     for (const f of fs.readdirSync(VIDEOS_DIR)) {
       if (!f.endsWith('.webm') || f.startsWith('temp_')) continue;
+      if (!wanted.some((prefix) => f.startsWith(prefix))) continue;
       const stats = fs.statSync(path.join(VIDEOS_DIR, f));
       videos.push({ filename: f, sizeMB: `${(stats.size / (1024 * 1024)).toFixed(2)} MB` });
     }
@@ -73,7 +88,7 @@ function listVideos() {
 export function generateReport(data) {
   fs.mkdirSync(VIDEOS_DIR, { recursive: true });
 
-  const videos = listVideos();
+  const videos = listVideos(data.selectedTracks ?? []);
   const drift = data.driftResult;
 
   const report = {
@@ -124,6 +139,16 @@ export function generateReport(data) {
     for (const p of report.docDrift.pages) {
       md.push(`| \`${p.docPath}\` | ${p.severity} | ${p.reason} |`);
     }
+    md.push('');
+  } else if (report.docDrift.fetchErrors.length > 0) {
+    // A page that could not be read was not compared, so it did not "match".
+    // Reporting it as matching turns an unverified page into a verified one on
+    // the artifact this run is judged by -- the one claim never worth making.
+    const unread = report.docDrift.fetchErrors.length;
+    md.push(
+      `📄 Doc drift: **unknown** — ${unread} of ${report.docDrift.checkedPages} tracked pages` +
+        ` could not be read. The other ${report.docDrift.checkedPages - unread} match.`,
+    );
     md.push('');
   } else {
     md.push(`📄 Doc drift: none — all ${report.docDrift.checkedPages} tracked pages match.`);

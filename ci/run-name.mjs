@@ -7,7 +7,7 @@
  * A downloaded artifact should say what it is and when it ran without needing
  * the Actions run page next to it. A commit SHA does neither.
  *
- * Computed once per workflow (in the `prepare` job) and passed to the others,
+ * Computed once per workflow (in the `drift` job) and passed to the matrix,
  * so every artifact from one run carries the same stamp.
  *
  * GitHub rejects artifact names containing " : < > | * ? \r \n / \, so this

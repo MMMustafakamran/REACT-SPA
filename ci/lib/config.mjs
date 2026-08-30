@@ -79,6 +79,37 @@ export const TRACK_NAMES = Object.keys(TRACKS);
 export const RUNTIME_PORT = 8200;
 export const FRONTEND_PORT = 5173;
 
-export const RUNTIME_URL = `http://127.0.0.1:${RUNTIME_PORT}`;
-export const RUNTIME_HEALTH_URL = `${RUNTIME_URL}/api/copilotkit/info`;
-export const FRONTEND_URL = `http://127.0.0.1:${FRONTEND_PORT}`;
+/**
+ * Every loopback address a health probe should try, in order.
+ *
+ * There is deliberately no single `FRONTEND_URL` constant beside these. One
+ * existed, every caller used it, and it is what broke the pipeline: a lone
+ * `http://127.0.0.1:5173` is an address, not the service.
+ *
+ * `localhost` is two addresses, and a server does not necessarily hold both.
+ * `server.ts` calls `listen(port)` with no host, so Node binds the wildcard and
+ * both families answer. Vite binds the *name* `localhost`, and Node has resolved
+ * names verbatim rather than IPv4-first since v17 — so on a GitHub `ubuntu-latest`
+ * runner, where `localhost` resolves to `::1` first, Vite listens on `::1` alone and
+ * `http://127.0.0.1:5173` is refused for the full 90s timeout. That is exactly
+ * how every CI run of this pipeline died while the job log showed Vite printing
+ * `ready in 285 ms` — three green servers reported as three timeouts.
+ *
+ * Probing the port under both families is the fix that does not touch what the
+ * recorded terminal shows. Passing `--host` to Vite would work too and is the
+ * wrong trade: the dev command is transcribed from the doc page, and a reader
+ * following the page does not pass `--host`.
+ */
+export function loopbackUrls(port, pathname = '') {
+  return [`http://127.0.0.1:${port}${pathname}`, `http://[::1]:${port}${pathname}`];
+}
+
+export const RUNTIME_HEALTH_URLS = loopbackUrls(RUNTIME_PORT, '/api/copilotkit/info');
+export const FRONTEND_URLS = loopbackUrls(FRONTEND_PORT);
+
+/**
+ * Filename prefix the recorder gives its videos, from
+ * `autorecorder/config/project.config.ts` (`RSPA-${TRACK}`). The report uses it
+ * to list only the clips this run produced.
+ */
+export const VIDEO_PREFIX = 'RSPA';

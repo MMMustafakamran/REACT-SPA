@@ -33,11 +33,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { checkAllDocDrift, renderDriftMarkdown } from './check-doc-drift.mjs';
 import {
-  FRONTEND_URL,
+  FRONTEND_URLS,
   LOGS_DIR,
   RECORDER_DIR,
   ROOT_DIR,
-  RUNTIME_HEALTH_URL,
+  RUNTIME_HEALTH_URLS,
   TRACKS,
   TRACK_NAMES,
   VIDEOS_DIR,
@@ -185,28 +185,50 @@ function tailLog(logPath, lines = 25) {
   }
 }
 
-async function waitForHealth(url, name, logPath, timeoutMs = 90000) {
+/**
+ * Poll until one of a service's addresses answers.
+ *
+ * `urls` is a list because a port is not one endpoint: a server bound to
+ * `localhost` may hold `::1` and not `127.0.0.1`, or the reverse, depending on
+ * how the host's resolver orders the two. Probing one family and calling the
+ * service dead is how every CI run here failed while the server was up. See
+ * `loopbackUrls` in lib/config.mjs.
+ *
+ * A response that arrives but is not ok is remembered rather than ignored, so
+ * a timeout can say "answered 403 on ::1" instead of leaving a reachable but
+ * unhappy server indistinguishable from one that never bound.
+ */
+async function waitForHealth(urls, name, logPath, timeoutMs = 90000) {
   const start = Date.now();
-  process.stdout.write(`⏳ Waiting for ${name} (${url})... `);
+  const candidates = Array.isArray(urls) ? urls : [urls];
+  const lastStatus = new Map();
+  process.stdout.write(`⏳ Waiting for ${name} (${candidates.join(' or ')})... `);
+
   while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
-      if (res.ok) {
-        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-        process.stdout.write(`✅ READY (${elapsed}s)\n`);
-        return Number(elapsed);
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+          process.stdout.write(`✅ READY at ${url} (${elapsed}s)\n`);
+          return Number(elapsed);
+        }
+        lastStatus.set(url, `HTTP ${res.status}`);
+      } catch (err) {
+        lastStatus.set(url, err.cause?.code || err.name || 'unreachable');
       }
-    } catch {
-      // keep polling
     }
     await new Promise((r) => setTimeout(r, 1000));
     process.stdout.write('.');
   }
+
+  const seen = candidates.map((u) => `${u} -> ${lastStatus.get(u) ?? 'no response'}`).join(', ');
   process.stdout.write('❌ TIMEOUT\n');
+  console.error(`   last seen: ${seen}`);
   console.error(`\n──── last lines of ${path.basename(logPath)} ────`);
   console.error(tailLog(logPath));
-  console.error('────────────────────────────────────────────\n');
-  throw new Error(`Timeout waiting for ${name} at ${url}. See ${logPath}`);
+  console.error('─'.repeat(44) + '\n');
+  throw new Error(`Timeout waiting for ${name} (${seen}). See ${logPath}`);
 }
 
 /**
@@ -253,8 +275,8 @@ async function runTrack(track, report) {
   const dev = startService(track, 'dev', t.dev);
 
   const health = {
-    runtime: await waitForHealth(RUNTIME_HEALTH_URL, `${track} Copilot Runtime`, runtime.debugLog),
-    frontend: await waitForHealth(FRONTEND_URL, `${track} Vite app`, dev.debugLog),
+    runtime: await waitForHealth(RUNTIME_HEALTH_URLS, `${track} Copilot Runtime`, runtime.debugLog),
+    frontend: await waitForHealth(FRONTEND_URLS, `${track} Vite app`, dev.debugLog),
   };
   report.tracks[track] = { health };
 
@@ -315,6 +337,11 @@ async function main() {
       if (drift.gating) {
         console.log('\n⚠️ --ignore-doc-drift given; recording against a stale snapshot.\n');
       }
+    } else if (drift.errors.length > 0) {
+      console.log(
+        `⚠️  Drift unknown: ${drift.errors.length} of ${drift.total} pages could not be read;` +
+          ` the other ${drift.total - drift.errors.length} match the local snapshot.`,
+      );
     } else {
       console.log(`✅ All ${drift.total} doc pages match the local snapshot.`);
     }

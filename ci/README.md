@@ -56,7 +56,9 @@ node ci/automate.mjs --quickstart --ignore-doc-drift
    1. **Install** — the manager's own install command.
    2. **Serve** — Copilot Runtime on `:8200` and Vite on `:5173`, both started
       through `autorecorder/capture.ts`.
-   3. **Health** — poll `/api/copilotkit/info` and the app root until both answer.
+   3. **Health** — poll `/api/copilotkit/info` and the app root until both
+      answer, on `127.0.0.1` *and* `[::1]`. See § "Why the health check probes
+      both loopback addresses".
    4. **Record** — hand off to the recorder with `TRACK` set.
    5. **Stop** — every service is torn down before the next track starts.
 4. **Report** — `RUN_REPORT.md` / `.json`, always, success or failure.
@@ -72,6 +74,16 @@ each changed page by *what part of it* moved:
 | **HIGH** | code fences added/removed, code content changed, page 404s | halt + notify |
 | **MEDIUM** | headings or structure changed | halt + notify |
 | **LOW** | prose only | announce, record anyway |
+
+"Code" means the contents of a fenced block, found by scanning for fences and
+dedenting each block to its own indentation — not "a line that starts with
+four spaces". That distinction is load-bearing on this page, whose every fence
+sits eight spaces deep inside an MDX `<Step>`, alongside prose indented exactly
+the same way. The indentation rule read that prose as code and classified a
+reworded sentence as HIGH, halting the nightly over a comma; it also never
+looked inside a fence, so a changed `port` on a page that does not nest came
+out LOW and recorded through. Both directions are now covered, and headings are
+matched at any depth so an indented `### ...` still registers as MEDIUM.
 
 HIGH matters here more than in the sibling repos, because the three scaffolds
 are transcribed from this page's code blocks. A change there means `server.ts`,
@@ -108,6 +120,56 @@ Inventing `yarn dev` and `yarn run tsx` would mean testing our idea of the page
 instead of the page. (It also does not work: Yarn 1's `run` does not reach
 `node_modules/.bin` the way `npm exec` does.) If the page ever adds per-manager
 run tabs, `TRACKS` in `lib/config.mjs` is the one place to change.
+
+## Why the health check probes both loopback addresses
+
+`localhost` is two addresses, and a server does not necessarily hold both.
+
+`server.ts` calls `listen(port)` with no host, so Node binds the wildcard and
+both families answer. Vite binds the *name* `localhost`, and Node has resolved
+names verbatim rather than IPv4-first since v17 — so on a GitHub
+`ubuntu-latest` runner, where `localhost` resolves to `::1` first, Vite listens
+on `::1` alone and `http://127.0.0.1:5173` is refused.
+
+That is not a hypothetical. Every CI run this pipeline made failed on it: the
+job log shows Vite printing `ready in 285 ms` and the pipeline reporting
+`Timeout waiting for npm Vite app at http://127.0.0.1:5173` ninety seconds
+later, on the same page. It never reproduced locally, because Windows resolves
+`localhost` to `127.0.0.1` first.
+
+The probe now tries every address in `loopbackUrls()` and takes the first that
+answers. Passing `--host` to Vite would also work and is the wrong fix: the dev
+command is transcribed from the doc page, a reader following the page does not
+pass `--host`, and the recorded terminal shows whatever we type.
+
+A response that arrives but is not `ok` is now remembered and printed with the
+timeout, so "answered 403 on `::1`" can never again look identical to "never
+bound".
+
+## Why the pnpm scaffold carries a `pnpm-workspace.yaml`
+
+pnpm 10 stopped running dependency install scripts unless each package is
+approved, and pnpm **exits non-zero** afterwards with
+`ERR_PNPM_IGNORED_BUILDS`. Both of this scaffold's offenders — `esbuild`,
+pulled in by Vite, and `@scarf/scarf` — are transitive, so `pnpm install`
+failed *after* printing `dependencies: + @copilotkit/react-core ... done`: the
+log reads like a clean install right up to the exit code. That failed the pnpm
+track of every CI run.
+
+`Pnpm/my-copilot-app/pnpm-workspace.yaml` sets `dangerouslyAllowAllBuilds:
+true`, which restores what `npm install` and `yarn install` do here anyway. An
+`allowBuilds:` allowlist was the alternative and is worse for this repo: the
+three tracks would stop installing the same tree, and the list would need
+re-approving every time a transitive dependency gained an install script —
+breaking the nightly for a reason that has nothing to do with the page.
+
+It is a file of its own rather than a `pnpm` key in `package.json` because the
+three scaffolds' manifests are byte-identical transcriptions of what the
+quickstart tells a reader to create, and only the install command is supposed
+to differ between tracks.
+
+Worth carrying into the doc review: a reader on the quickstart's pnpm tab
+running pnpm 10 or newer hits this too, and the page says nothing about it.
 
 ## Which versions get tested
 
@@ -169,5 +231,12 @@ local failures were `AI_APICallError` → `ConnectTimeoutError` against
 
 **A track fails to install** — that is a result, not an outage. Yarn 1 has been
 seen exiting 0 on an incomplete install (no lockfile, empty `node_modules/.bin`),
-with the damage surfacing minutes later as `'tsx' is not recognized`. Read the
-install log before re-running.
+with the damage surfacing minutes later as `'tsx' is not recognized`. pnpm has
+been seen doing the reverse, exiting 1 on a *complete* install because it
+declined to run a transitive dependency's build script. Read the install log
+before re-running.
+
+**Vite times out while its own log says `ready in ... ms`** — the two are not
+in conflict: the server is up on an address the probe was not asking about. The
+timeout now names what each address answered. See § "Why the health check
+probes both loopback addresses".

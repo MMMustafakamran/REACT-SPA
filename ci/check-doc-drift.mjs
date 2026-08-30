@@ -49,47 +49,130 @@ function sha256(text) {
 }
 
 /**
+ * Every fenced code block on the page, dedented to its own fence indentation.
+ *
+ * A scanner rather than a line filter, because this page nests its code inside
+ * MDX `<Step>` elements: every fence, and every line of PROSE beside it, is
+ * indented eight spaces. The rule this replaces was "a line starting with four
+ * spaces, or with a fence marker, is code", which on this page:
+ *
+ *   - read the page's indented prose as code, so rewording one sentence inside
+ *     a <Step> was classified HIGH "code block content changed" — halting the
+ *     nightly and filing a drift issue over a comma; and
+ *   - never looked *inside* a fence, whose contents are not themselves indented
+ *     on any page that does not nest, so a changed `port` or `runtimeUrl` on a
+ *     flat page was classified LOW "prose phrasing updated" and recorded
+ *     through — the exact failure the severity gate exists to prevent.
+ *
+ * Lines are dedented by the opening fence's own indentation rather than
+ * trimmed, so re-nesting the whole block is not drift while a change to the
+ * code's own relative indentation still is.
+ */
+function codeBlocks(text) {
+  const blocks = [];
+  let open = null;
+  let current = [];
+
+  for (const line of text.split('\n')) {
+    const m = line.match(/^(\s*)(`{3,}|~{3,})/);
+
+    if (!open) {
+      if (m) {
+        open = { marker: m[2][0], indent: m[1].length };
+        current = [line.slice(open.indent)];
+      }
+      continue;
+    }
+
+    current.push(line.slice(open.indent));
+    // A closing fence is the same marker character, indented no deeper than the
+    // opener. Anything deeper is content — a fence inside a fenced block.
+    if (m && m[2][0] === open.marker && m[1].length <= open.indent) {
+      blocks.push(current.join('\n'));
+      open = null;
+      current = [];
+    }
+  }
+
+  // An unterminated fence still carries content worth comparing.
+  if (open) blocks.push(current.join('\n'));
+
+  return blocks;
+}
+
+/** Headings at any nesting depth. `        ### Create your React app` counts. */
+function headings(text) {
+  return text
+    .split('\n')
+    .filter((l) => /^\s*#{1,6}\s/.test(l))
+    .map((l) => l.trim())
+    .join('\n');
+}
+
+/**
  * Classify a change by what part of the page moved.
  *
  * Code first, because that is what the scaffolds are transcribed from.
  */
 function categorize(oldText, newText) {
-  const fences = (t) => (t.match(/```/g) || []).length;
-  if (fences(oldText) !== fences(newText)) {
-    return { level: 'HIGH', reason: 'code fence count changed' };
+  const oldBlocks = codeBlocks(oldText);
+  const newBlocks = codeBlocks(newText);
+
+  if (oldBlocks.length !== newBlocks.length) {
+    return {
+      level: 'HIGH',
+      reason: `code block count changed (${oldBlocks.length} to ${newBlocks.length})`,
+    };
   }
 
-  const codeOf = (t) =>
-    t
-      .split('\n')
-      .filter((l) => l.startsWith('    ') || l.startsWith('```'))
-      .join('\n');
-  if (codeOf(oldText) !== codeOf(newText)) {
-    return { level: 'HIGH', reason: 'code block content changed' };
+  const changed = oldBlocks.filter((b, i) => b !== newBlocks[i]).length;
+  if (changed > 0) {
+    return {
+      level: 'HIGH',
+      reason: `code block content changed (${changed} of ${oldBlocks.length})`,
+    };
   }
 
-  const headingsOf = (t) =>
-    t
-      .split('\n')
-      .filter((l) => l.startsWith('#'))
-      .join('\n');
-  if (headingsOf(oldText) !== headingsOf(newText)) {
+  if (headings(oldText) !== headings(newText)) {
     return { level: 'MEDIUM', reason: 'headings / structure changed' };
   }
 
   return { level: 'LOW', reason: 'prose phrasing updated' };
 }
 
-/** First differing lines, for the notification. Enough to judge, not a full diff. */
+/**
+ * The changed region, for the notification. Enough to judge, not a full diff.
+ *
+ * Compared from both ends rather than by line index. Index-aligned comparison
+ * made a single inserted line report every subsequent line as changed, so the
+ * sample shown in the drift issue described a rewritten page whenever one
+ * sentence had been added.
+ */
 function sampleDiff(oldText, newText, max = 12) {
   const a = oldText.split('\n');
   const b = newText.split('\n');
-  const out = [];
-  for (let i = 0; i < Math.max(a.length, b.length) && out.length < max; i++) {
-    if (a[i] === b[i]) continue;
-    if (a[i] !== undefined) out.push(`- ${a[i]}`);
-    if (b[i] !== undefined) out.push(`+ ${b[i]}`);
+
+  let start = 0;
+  while (start < a.length && start < b.length && a[start] === b[start]) start++;
+
+  let endA = a.length;
+  let endB = b.length;
+  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+    endA--;
+    endB--;
   }
+
+  const removed = a.slice(start, endA);
+  const added = b.slice(start, endB);
+  const half = Math.max(1, Math.floor(max / 2));
+
+  const out = [
+    ...removed.slice(0, half).map((l) => `- ${l}`),
+    ...(removed.length > half ? [`- ... ${removed.length - half} more removed`] : []),
+    ...added.slice(0, half).map((l) => `+ ${l}`),
+    ...(added.length > half ? [`+ ... ${added.length - half} more added`] : []),
+  ];
+
   return out.join('\n');
 }
 
@@ -260,8 +343,19 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   }
 
   if (!result.drifted) {
+    // Pages that could not be read did not "match" -- they were never compared.
+    // Counting them as matching is the one wrong answer here: it reports a
+    // silently unverified page as verified.
+    const compared = result.total - result.errors.length;
+    if (result.errors.length > 0) {
+      console.log(
+        `⚠️  Drift unknown: ${result.errors.length} of ${result.total} pages could not be read.` +
+          ` The other ${compared} match the local snapshot.`,
+      );
+      process.exit(1);
+    }
     console.log(`✅ All ${result.total} doc pages match the local snapshot.`);
-    process.exit(result.errors.length ? 1 : 0);
+    process.exit(0);
   }
 
   console.log(renderDriftMarkdown(result));
@@ -272,5 +366,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     process.exit(0);
   }
 
-  process.exit(result.gating ? 2 : 0);
+  // 2 = gating drift, 1 = at least one page could not be read (drift unknown
+  // for it), 0 = drift that does not gate. Gating wins: it is the stronger
+  // reason to stop, and the caller acts on it identically either way.
+  if (result.gating) process.exit(2);
+  process.exit(result.errors.length ? 1 : 0);
 }
