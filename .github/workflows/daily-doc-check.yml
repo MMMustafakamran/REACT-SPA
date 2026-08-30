@@ -211,7 +211,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.meta.outputs.run_name }}-drift
+          # Named for its contents, not the run. `bundle` merges these into one
+          # archive that carries the run stamp, and `separate-directories` uses
+          # each source artifact's name as its folder -- so a run-stamped name
+          # here would produce `<run>/<run>-drift/drift.txt`.
+          name: drift
           path: drift.txt
           retention-days: 30
 
@@ -276,7 +280,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ needs.drift.outputs.run_name }}-${{ matrix.track }}
+          # See the drift upload above: this becomes a folder inside the merged
+          # archive, so it is the track and nothing else.
+          name: ${{ matrix.track }}
           path: |
             autorecorder/videos/*.webm
             autorecorder/videos/RUN_REPORT.*
@@ -302,7 +308,9 @@ jobs:
         uses: actions/upload-artifact/merge@v6
         with:
           name: ${{ needs.drift.outputs.run_name }}
-          pattern: ${{ needs.drift.outputs.run_name }}-*
+          # Everything this run uploaded. The merged artifact is created after
+          # the match, so it cannot match itself.
+          pattern: '*'
           # Every track writes RUN_REPORT.md, RUN_REPORT.json and a logs/ tree
           # at identical paths. Flattened, a three-track run would leave one
           # report and one track's logs, silently. Kept apart, the zip opens as

@@ -201,7 +201,8 @@ plus the drift report — into a single zip named for the run, deleting the
 originals. Otherwise a green nightly leaves four zips on the run page to
 download and unpack separately, three of which have a `RUN_REPORT.md` at the
 same path. `separate-directories` keeps them as `npm/`, `pnpm/`, `yarn/` and
-`drift/` inside the one archive. It runs on `always()`, because a failed track
+`drift/` inside the one archive — which is why the per-track uploads are named
+for the track alone and only the merged archive carries the run stamp. It runs on `always()`, because a failed track
 is a result worth reading and a halted run still has a drift report worth
 keeping.
 
