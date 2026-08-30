@@ -284,3 +284,32 @@ jobs:
             autorecorder/videos/logs/**
           retention-days: 30
           if-no-files-found: warn
+
+  # ── 2. One download instead of four ─────────────────────────────────────
+  bundle:
+    name: Bundle the run
+    needs: [drift, record]
+    # always(), because a red track is still a result worth downloading --
+    # fail-fast is off precisely so the other tracks finish -- and because on a
+    # halted or drift-only run `record` is skipped while the drift report still
+    # exists. The drift artifact is uploaded unconditionally, so there is always
+    # at least one input here. The run_name guard covers the one case that is
+    # not true: the drift job dying before it computed a name.
+    if: always() && needs.drift.outputs.run_name != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge every artifact into one
+        uses: actions/upload-artifact/merge@v6
+        with:
+          name: ${{ needs.drift.outputs.run_name }}
+          pattern: ${{ needs.drift.outputs.run_name }}-*
+          # Every track writes RUN_REPORT.md, RUN_REPORT.json and a logs/ tree
+          # at identical paths. Flattened, a three-track run would leave one
+          # report and one track's logs, silently. Kept apart, the zip opens as
+          # npm/, pnpm/, yarn/ and drift/ -- which is also how anyone reading it
+          # wants it.
+          separate-directories: true
+          # Leave exactly one artifact on the run page. The per-track uploads
+          # are inputs to this, not results to keep beside it.
+          delete-merged: true
+          retention-days: 30

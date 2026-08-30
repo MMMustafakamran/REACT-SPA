@@ -187,13 +187,23 @@ What no run does is rewrite the ranges. Raising one is a reviewed edit to
 ## CI shape
 
 ```
-drift ──gating──→ notify (issue) + stop
-  │
-  └──clean / prose-only──→ record: npm │ pnpm │ yarn   (matrix, fail-fast: false)
+drift ──gating──→ notify (issue) + stop ─────────────────┐
+  │                                                      │
+  └──clean / prose-only──→ record: npm │ pnpm │ yarn ──→ bundle
+                           (matrix, fail-fast: false)    (one artifact)
 ```
 
 `fail-fast` is off on purpose. pnpm breaking is not a reason to stop learning
 whether npm and yarn work — *which* manager fails is itself the finding.
+
+Each track uploads its own artifact and the `bundle` job merges all of them —
+plus the drift report — into a single zip named for the run, deleting the
+originals. Otherwise a green nightly leaves four zips on the run page to
+download and unpack separately, three of which have a `RUN_REPORT.md` at the
+same path. `separate-directories` keeps them as `npm/`, `pnpm/`, `yarn/` and
+`drift/` inside the one archive. It runs on `always()`, because a failed track
+is a result worth reading and a halted run still has a drift report worth
+keeping.
 
 The track list is computed in the `drift` job and passed to the matrix as JSON.
 Turning `npm,pnpm` into a matrix array with inline expressions takes three
