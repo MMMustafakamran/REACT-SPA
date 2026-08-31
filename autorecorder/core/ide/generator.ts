@@ -840,9 +840,16 @@ export async function generateIdeHtml(
       width: 100%;
       min-height: 22px;
     }
+    /*
+     * The range marker only. The fill itself belongs to the text, not the row
+     * -- see .line-content.highlighted > span below.
+     *
+     * box-shadow rather than border-left: a border is part of the box, so it
+     * pushed every highlighted line 3px right of the unhighlighted lines around
+     * it, and the code visibly stepped in and out at the range edges.
+     */
     .code-line.highlighted {
-      background: rgba(38, 79, 120, 0.45);
-      border-left: 3px solid #007acc;
+      box-shadow: inset 3px 0 0 0 #007acc;
     }
     .line-num {
       width: 58px;
@@ -865,6 +872,18 @@ export async function generateIdeHtml(
     }
     .line-content.highlighted {
       color: #ffffff;
+    }
+    /*
+     * Hug the glyphs, the way an editor selection does, instead of flooding the
+     * row to the right-hand edge of the pane. The span is inline, so its
+     * background ends where the line's text ends -- including the leading
+     * indentation, which is part of the token stream.
+     */
+    .line-content.highlighted > span {
+      background: rgba(38, 79, 120, 0.75);
+      border-radius: 2px;
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
     }
     /* Blinking VS Code Caret */
     .vs-caret {
