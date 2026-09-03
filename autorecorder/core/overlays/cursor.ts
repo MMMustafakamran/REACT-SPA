@@ -126,7 +126,7 @@ export async function humanClick(page: Page): Promise<void> {
   await page.evaluate(`
     (function() {
       var c = document.getElementById('playwright-virtual-mouse');
-      if (c) c.style.transform = 'translate(-2px, -2px) scale(0.85)';
+      if (c) c.style.transform = 'translate(-4px, -2px) scale(0.9)';
     })()
   `);
   await page.mouse.down();
@@ -135,7 +135,7 @@ export async function humanClick(page: Page): Promise<void> {
   await page.evaluate(`
     (function() {
       var c = document.getElementById('playwright-virtual-mouse');
-      if (c) c.style.transform = 'translate(-2px, -2px) scale(1)';
+      if (c) c.style.transform = 'translate(-4px, -2px) scale(1)';
     })()
   `);
   await page.mouse.up();

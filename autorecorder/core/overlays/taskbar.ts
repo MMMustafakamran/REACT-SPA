@@ -298,8 +298,8 @@ export async function ensureOverlays(
       if (!cursor) {
         cursor = document.createElement('div');
         cursor.id = 'playwright-virtual-mouse';
-        cursor.style.cssText = 'position:fixed!important;top:${curY.toFixed(1)}px!important;left:${curX.toFixed(1)}px!important;width:24px!important;height:24px!important;z-index:2147483647!important;pointer-events:none!important;transform:translate(-2px,-2px)!important;transition:transform 0.04s ease-out!important;';
-        cursor.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6));"><path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.45 0 .67-.54.35-.85L6.35 2.86a.5.5 0 0 0-.85.35Z" fill="#ffffff" stroke="#111111" stroke-width="1.5"/></svg>';
+        cursor.style.cssText = 'position:fixed!important;top:${curY.toFixed(1)}px!important;left:${curX.toFixed(1)}px!important;width:24px!important;height:24px!important;z-index:2147483647!important;pointer-events:none!important;transform:translate(-4px,-2px)!important;transform-origin:4px 2px!important;transition:transform 0.04s ease-out!important;';
+        cursor.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="filter:drop-shadow(0 1px 1px rgba(0,0,0,0.28));"><path d="M4 2 L4 19.1 L8.4 15.1 L11.2 21.2 L14 19.9 L11.3 14.1 L17.2 14.1 Z" fill="#ffffff" stroke="#2b2b2b" stroke-width="1" stroke-linejoin="round"/></svg>';
         document.documentElement.appendChild(cursor);
       }
       window.__autorecordCursor = cursor;
