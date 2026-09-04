@@ -69,21 +69,63 @@ function trackVersions() {
  * track prefix is the filter. A track that recorded nothing contributes
  * nothing, which is the honest answer.
  */
-function listVideos(tracks) {
-  const wanted = (tracks ?? []).map((t) => `${VIDEO_PREFIX}-${t}-`);
-  const videos = [];
+function sizeOf(file) {
   try {
-    for (const f of fs.readdirSync(VIDEOS_DIR)) {
-      if (!f.endsWith('.webm') || f.startsWith('temp_')) continue;
-      if (!wanted.some((prefix) => f.startsWith(prefix))) continue;
-      const stats = fs.statSync(path.join(VIDEOS_DIR, f));
-      videos.push({ filename: f, sizeMB: `${(stats.size / (1024 * 1024)).toFixed(2)} MB` });
-    }
+    return `${(fs.statSync(file).size / (1024 * 1024)).toFixed(2)} MB`;
   } catch {
-    // ignore
+    return 'n/a';
+  }
+}
+
+/**
+ * The recorder writes `RECORD_RESULTS.json` per run and `automate.mjs` moves
+ * it to `RECORD_RESULTS.<track>.json` after each track. Those carry the
+ * verdict, the warnings and the console errors; the directory listing below
+ * is only the fallback for a track that died before the recorder wrote one,
+ * and is labelled as such.
+ */
+function listVideos(tracks) {
+  const videos = [];
+  for (const track of tracks ?? []) {
+    const resultsFile = path.join(VIDEOS_DIR, `RECORD_RESULTS.${track}.json`);
+    let run;
+    try {
+      run = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
+    } catch {
+      run = null;
+    }
+    if (run) {
+      for (const r of run.results ?? []) {
+        videos.push({
+          track,
+          filename: r.filename || '',
+          status: !r.success ? 'failed' : r.warnings?.length ? 'pass-with-notes' : 'pass',
+          notes: [...(r.warnings ?? []), ...(r.error ? [r.error] : [])],
+          sizeMB: r.filename ? sizeOf(path.join(VIDEOS_DIR, r.filename)) : 'n/a',
+          fromRun: true,
+        });
+      }
+      continue;
+    }
+    const prefix = `${VIDEO_PREFIX}-${track}-`;
+    try {
+      for (const f of fs.readdirSync(VIDEOS_DIR)) {
+        if (!f.endsWith('.webm') || f.startsWith('temp_') || !f.startsWith(prefix)) continue;
+        videos.push({ track, filename: f, status: 'on-disk', notes: [], sizeMB: sizeOf(path.join(VIDEOS_DIR, f)), fromRun: false });
+      }
+    } catch {
+      // ignore
+    }
   }
   return videos.sort((a, b) => a.filename.localeCompare(b.filename));
 }
+
+const STATUS_LABEL = {
+  pass: '✅ recorded',
+  'pass-with-notes': '⚠️ recorded with notes',
+  failed: '❌ failed',
+  'on-disk': '📁 on disk (no results file for this track)',
+};
 
 export function generateReport(data) {
   fs.mkdirSync(VIDEOS_DIR, { recursive: true });
@@ -179,7 +221,13 @@ export function generateReport(data) {
   if (videos.length > 0) {
     md.push('### Recordings');
     md.push('');
-    for (const v of videos) md.push(`- \`${v.filename}\` (${v.sizeMB})`);
+    for (const v of videos) {
+      const notes = v.notes.map((n) => n.replace(/\s+/g, ' ')).join('; ');
+      md.push(
+        `- \`${v.filename || '(no video)'}\` (${v.sizeMB}) — ${STATUS_LABEL[v.status] ?? v.status}` +
+          (notes ? `: ${notes}` : ''),
+      );
+    }
     md.push('');
   }
 

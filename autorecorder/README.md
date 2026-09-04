@@ -116,11 +116,17 @@ expensive. Publish them as release assets or to a bucket.
 ```
 
 - **PASS** — every step completed.
-- **PASS\*** — recorded, but the external doc page misbehaved. The intro footage
-  is degraded; the feature under test is not implicated.
+- **PASS\*** — recorded, with a note. Either the external doc page misbehaved
+  (intro footage degraded, feature not implicated), or the browser console
+  logged errors during the demo step.
 - **FAIL** — the app never rendered a chat surface, the agent never answered, or
-  the IDE view could not be built. The process exits 1, so this is safe to gate
-  CI on.
+  the IDE view could not be built. The clip is still saved as evidence. The
+  process exits 1, so this is safe to gate CI on.
+
+Every run also writes `videos/RECORD_RESULTS.json` — the verdict, duration,
+warnings and distinct console errors per page. `ci/automate.mjs` moves it to
+`RECORD_RESULTS.<track>.json` after each track, and the run report reads those
+rather than listing every `.webm` in the folder.
 
 On this project a FAIL is nearly always one of the two things the doc page warns
 about: `cors: true` missing from `server.ts`, or a relative `runtimeUrl` in
@@ -147,15 +153,22 @@ autorecorder/
 │   └── index.ts                  page id → handler registry (empty here)
 │
 ├── core/                       ← locally forked; see the note below
+│   ├── CORE_MANIFEST.json        hash per core file; `npm run core:check` enforces it
 │   ├── engine.ts                 browser lifecycle, the 4-step sequence, pass/fail
 │   ├── actions.ts                sendPrompt, response detection, standard action
 │   ├── doctor.ts                 the adaptation contract, as a command
 │   ├── diagnostics.ts            pre-flight health check
-│   ├── types.ts                  PageDefinition → PageRecordConfig
-│   ├── ide/generator.ts          VS Code simulator, Shiki-highlighted from disk
-│   └── overlays/                 Windows 11 taskbar + virtual cursor
+│   ├── console-capture.ts        browser console/page/network errors, per take
+│   ├── select.ts                 which pages a `record` invocation means
+│   ├── timeouts.ts               every fixed wait, with project/page overrides
+│   ├── types.ts                  PageDefinition → PageRecordConfig, ActionContext
+│   ├── ide/generator.ts          VS Code simulator with the integrated terminal
+│   └── overlays/                 Windows 11 taskbar, virtual cursor, human pacing
 │
-└── videos/                     ← output
+├── scripts/core-manifest.mjs   ← core/ drift check (--check / --write / --diff)
+├── test/                       ← unit tests for the pure modules (`npm test`)
+│
+└── videos/                     ← output, plus RECORD_RESULTS.json per run
 ```
 
 **`core/` is a local fork in this repo.** In the sibling repos it is frozen
@@ -163,8 +176,10 @@ shared code, and ADAPT.md still says so. The integrated terminal required a new
 step in `engine.ts`, a panel in `ide/generator.ts` and a check in `doctor.ts`,
 and the decision was to keep that here rather than change the shared suite. If
 the terminal is ever wanted elsewhere, it should be lifted into `core/` as an
-opt-in — gated on a page having `terminals` — so the other five repos stay
-byte-identical until they ask for it.
+opt-in — gated on a page having `terminals` — so the other repos stay
+byte-identical until they ask for it. Everything else in `core/` tracks the
+shared suite: `node scripts/core-manifest.mjs --diff ../../MsPy-angular/autorecorder`
+lists exactly which files this fork differs in.
 
 `actions/index.ts` is deliberately empty: one page driving CopilotKit's own
 `<CopilotChat />` with a single prompt is exactly `runStandardAction`. The
@@ -186,6 +201,23 @@ a single-page app, so they were deleted rather than kept.
    taskbar.
 4. **Demo** — opens `http://localhost:5173`, types the prompt, waits for the
    reply to finish streaming, and pauses for reading.
+
+### What makes it read as a person
+
+Every pace in a take comes from `core/overlays/human.ts`, seeded from the
+page id, so tonight's clip is identical to last night's and two recordings
+stay comparable frame for frame.
+
+- **Typing** has a person's rhythm: jittered keystrokes, a beat after
+  punctuation, the odd mid-sentence pause. A retry after a swallowed submit is
+  typed quickly instead; that is the recorder recovering, not a performance.
+- **Scrolling** is in bursts: a few wheel notches, a reading pause, a few more,
+  sometimes a nudge back up.
+- **Pauses** vary by about a quarter around their nominal length.
+- **The cursor** overshoots slightly on long travel and settles, hovers a
+  variable moment before a click, drifts while a reply streams instead of
+  freezing, and starts each take somewhere plausible rather than dead centre.
+- **The IDE window** fades in over 180ms instead of cutting.
 
 ### The terminal is a recording, not a mock-up
 

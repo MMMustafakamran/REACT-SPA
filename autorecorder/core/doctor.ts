@@ -228,6 +228,30 @@ function checkPages(rootDir: string, problems: Problem[]): void {
         });
       }
     }
+
+    // The demo route has to exist in this repo's frontend. A page listed here
+    // with no route behind it is the "pages with no /demo route" gap from
+    // project-context.md, and it only surfaced before as an HTTP 404 at record
+    // time. Checked statically where the frontend is a Next.js App Router
+    // tree; other frontends (this one is Angular, whose routes live in
+    // app.routes.ts) skip it, and --online still probes the URL.
+    const appDir = join(rootDir, 'frontend', 'src', 'app');
+    const isNextApp = ['next.config.ts', 'next.config.js', 'next.config.mjs'].some((f) =>
+      existsSync(join(rootDir, 'frontend', f)),
+    );
+    if (isNextApp && existsSync(appDir)) {
+      const routeDir = join(appDir, ...page.route.split('/'), ...PROJECT.demoSuffix.split('/').filter(Boolean));
+      const hasPage = ['page.tsx', 'page.ts', 'page.jsx', 'page.js', 'route.ts'].some((f) =>
+        existsSync(join(routeDir, f)),
+      );
+      if (!hasPage) {
+        problems.push({
+          scope,
+          severity: 'error',
+          message: `demo route /${page.route}${PROJECT.demoSuffix} has no page under frontend/src/app -- the recording would 404`,
+        });
+      }
+    }
   }
 
   // Handlers registered for pages that no longer exist.
@@ -289,14 +313,32 @@ async function checkOnline(problems: Problem[]): Promise<void> {
     // v2, whose send button carries no type, aria-label or text. Reporting that
     // as an error would put the reference implementation permanently in the red
     // and teach everyone to ignore this command.
-    for (const key of ['chatInput', 'chatReady'] as const) {
-      const count = await p.locator(SELECTORS[key]).count().catch(() => 0);
-      if (count === 0) {
+    //
+    // Each selector is a comma list of alternatives, first match wins. Saying
+    // *which* alternative matched is the difference between "chatReady is
+    // fine" and "chatReady is matching a bare <input> that is not the chat".
+    for (const key of ['chatInput', 'chatReady', 'assistantMessage'] as const) {
+      const alternatives = SELECTORS[key].split(',').map((s) => s.trim()).filter(Boolean);
+      const hits: string[] = [];
+      for (const alt of alternatives) {
+        const n = await p.locator(alt).count().catch(() => 0);
+        if (n > 0) hits.push(`${alt} (${n})`);
+      }
+      if (hits.length === 0 && key !== 'assistantMessage') {
         problems.push({
           scope: 'selectors.config',
           severity: 'error',
           message: `${key} matched nothing on ${PAGES[0].demoUrl} -- nothing to drive`,
         });
+      } else if (hits.length > 0) {
+        console.log(`  [i] ${key} matches: ${hits.join(', ')}`);
+        if (key === 'assistantMessage') {
+          problems.push({
+            scope: 'selectors.config',
+            severity: 'warning',
+            message: `assistantMessage already matches elements before any reply (${hits.join(', ')}) -- a loose alternative may make every reply look complete the instant it starts`,
+          });
+        }
       }
     }
 

@@ -250,6 +250,25 @@ jobs:
           npm install
           npx playwright install --with-deps chromium
 
+      # Unit tests for the recorder's pure modules (page selection, human
+      # pacing) and the core/ drift check. Neither needs a browser or a
+      # service; reported, not gating.
+      - name: Recorder unit tests & core drift
+        run: |
+          set +e
+          npm --prefix autorecorder test > recorder-tests.txt 2>&1
+          UT=$?
+          npm --prefix autorecorder run core:check > core-check.txt 2>&1
+          CC=$?
+          set -e
+          cat recorder-tests.txt core-check.txt
+          {
+            echo "### Recorder self-checks (${{ matrix.track }})"
+            echo
+            if [ "$UT" = "0" ]; then echo "- unit tests: **pass** ($(grep -o 'pass [0-9]*' recorder-tests.txt | tail -1))"; else echo "- unit tests: **failing** -- see the job log"; fi
+            if [ "$CC" = "0" ]; then echo "- core/: **matches CORE_MANIFEST.json**"; else echo "- core/: **drifted from CORE_MANIFEST.json** -- run \`npm run core:write\` if deliberate"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Run the pipeline
         run: |
           FLAGS="--tracks=${{ matrix.track }}"
@@ -286,6 +305,7 @@ jobs:
           path: |
             autorecorder/videos/*.webm
             autorecorder/videos/RUN_REPORT.*
+            autorecorder/videos/RECORD_RESULTS*.json
             autorecorder/videos/DOC_DRIFT.md
             autorecorder/videos/logs/**
           retention-days: 30

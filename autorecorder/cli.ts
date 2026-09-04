@@ -2,18 +2,31 @@
  * Automated Screen Recording & Demonstration Pipeline
  * Entrypoint & CLI runner
  */
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import { PAGES } from './config/pages.config';
 import { PROJECT } from './config/project.config';
 import { checkServicesHealth } from './core/diagnostics';
 import { RecordingEngine } from './core/engine';
 import { runDoctor } from './core/doctor';
+import { parseShard, selectPages } from './core/select';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
+const VIDEOS_DIR = join(__dirname, 'videos');
 
-interface PageResult {
+/**
+ * Per-run results, next to the videos.
+ *
+ * Page recordings had no record of their own, so the CI report listed every
+ * `.webm` in the folder and marked them all "Recorded" — a run of one page
+ * reported five, four of them days old. This is what the report reads instead.
+ */
+export const RESULTS_FILE = 'RECORD_RESULTS.json';
+
+export interface PageResult {
   id: string;
   name: string;
   filename: string;
@@ -21,6 +34,15 @@ interface PageResult {
   durationSec: number;
   error?: string;
   warnings: string[];
+  consoleErrors?: string[];
+}
+
+export interface RunResults {
+  timestamp: string;
+  args: string[];
+  passed: number;
+  failed: number;
+  results: PageResult[];
 }
 
 /**
@@ -55,195 +77,140 @@ async function assertServicesUp(force: boolean): Promise<void> {
   process.exit(1);
 }
 
-/** Global switches that must never be mistaken for a page id or filter query. */
-const GLOBAL_FLAGS = new Set([
-  '--force',
-  '--list',
-  '-l',
-  'list',
-  '--help',
-  '-h',
-  '--doctor',
-  '--verify-config',
-  '--online',
-  '--limit',
-  '--first',
-  '--count',
-  '--shard',
-]);
+function printUsage(): void {
+  console.log(`
+🎬 npm run record -- [selection] [options]
+
+Selection (default: every page, in nav order)
+  --<page-id>, <page-id>     one page, e.g. --quickstart
+  --page=<id>                same thing, explicit form
+  --pages=<id,id>            exactly these pages (--only= is an alias)
+  --filter=<text>            pages whose id or name contains the text
+  <word> [<word> ...]        same as --filter, for each word
+  --limit=<n>                first n of the selection (--first=, --count=)
+  --shard=<k>/<n>            slice k of n, for matrix workers
+
+Options
+  --list, -l                 print every registered page and exit
+  --doctor                   validate the configuration; exits 1 on error
+  --doctor --online          also probe every doc/demo URL and the selectors
+  --force                    record even if the pre-flight health check fails
+  --help, -h                 this text
+
+Results go to videos/${RESULTS_FILE}; the process exits 1 if any page failed.
+`);
+}
+
+function printList(): void {
+  console.log(`\n📋 REGISTERED RECORDING ROUTES (${PAGES.length} total):\n`);
+  for (let i = 0; i < PAGES.length; i++) {
+    const p = PAGES[i];
+    console.log(`  ${String(i + 1).padStart(2, ' ')}. [${p.id}] ${p.name}`);
+    console.log(`      Command: npm run record -- --${p.id}`);
+    console.log(`      Doc:     ${p.docUrl}`);
+    console.log(`      Demo:    ${p.demoUrl}`);
+    console.log(`      File:    ${p.ideFile} (lines ${p.startLine}-${p.endLine})`);
+  }
+  console.log('');
+}
+
+/** The switches this command knows. Anything else is a page id or a search word. */
+const OPTIONS = {
+  force: { type: 'boolean', default: false },
+  list: { type: 'boolean', short: 'l', default: false },
+  help: { type: 'boolean', short: 'h', default: false },
+  doctor: { type: 'boolean', default: false },
+  'verify-config': { type: 'boolean', default: false },
+  online: { type: 'boolean', default: false },
+  page: { type: 'string' },
+  pages: { type: 'string' },
+  only: { type: 'string' },
+  filter: { type: 'string' },
+  limit: { type: 'string' },
+  first: { type: 'string' },
+  count: { type: 'string' },
+  shard: { type: 'string' },
+} as const;
 
 async function main(): Promise<void> {
   const rawArgs = process.argv.slice(2);
-  // Selection args only; `--force` etc. would otherwise fall through to the
-  // substring filter below and match zero pages.
-  const args = rawArgs.filter((a) => {
-    if (GLOBAL_FLAGS.has(a)) return false;
-    if (
-      a.startsWith('--limit=') ||
-      a.startsWith('--first=') ||
-      a.startsWith('--count=') ||
-      a.startsWith('--shard=')
-    ) {
-      return false;
-    }
-    return true;
+
+  // `strict: false` so `--quickstart` is accepted without being declared: it
+  // arrives as an unknown boolean, and unknown booleans are page ids or search
+  // words. Everything the command actually acts on is declared above, so a
+  // typo in a real switch cannot fall through and become a page search.
+  const { values, positionals } = parseArgs({
+    args: rawArgs,
+    options: OPTIONS,
+    strict: false,
+    allowPositionals: true,
   });
-  const isListMode =
-    rawArgs.includes('--list') ||
-    rawArgs.includes('-l') ||
-    rawArgs.includes('list') ||
-    rawArgs.includes('--help') ||
-    rawArgs.includes('-h');
 
-  // Adaptation check. Static by default; --online also probes live URLs.
-  if (rawArgs.includes('--doctor') || rawArgs.includes('--verify-config')) {
-    process.exit(await runDoctor(ROOT, { online: rawArgs.includes('--online') }));
-  }
-
-  if (isListMode) {
-    console.log(`\n📋 REGISTERED RECORDING ROUTES (${PAGES.length} total):\n`);
-    for (let i = 0; i < PAGES.length; i++) {
-      const p = PAGES[i];
-      console.log(`  ${String(i + 1).padStart(2, ' ')}. [${p.id}] ${p.name}`);
-      console.log(`      Command: npm run record -- --${p.id}`);
-      console.log(`      Doc:     ${p.docUrl}`);
-      console.log(`      Demo:    ${p.demoUrl}`);
-      console.log(`      File:    ${p.ideFile} (lines ${p.startLine}-${p.endLine})`);
-    }
-    console.log('');
+  if (values.help) {
+    printUsage();
     return;
   }
 
-  // 1. Check for explicit --page=xxx or --page xxx
-  let pageArg: string | undefined = args
-    .find((a) => a.startsWith('--page='))
-    ?.split('=')[1];
-  if (!pageArg) {
-    const pageIndex = args.indexOf('--page');
-    if (pageIndex !== -1 && args[pageIndex + 1]) {
-      pageArg = args[pageIndex + 1];
-    }
+  // Adaptation check. Static by default; --online also probes live URLs.
+  if (values.doctor || values['verify-config']) {
+    process.exit(await runDoctor(ROOT, { online: Boolean(values.online) }));
   }
 
-  // 2. Check for direct page flag like --quickstart, -quickstart, --slots, etc.
-  if (!pageArg) {
-    for (const arg of args) {
-      const cleanArg = arg.replace(/^-+/, '').toLowerCase();
-      const matchedPage = PAGES.find((p) => p.id.toLowerCase() === cleanArg);
-      if (matchedPage) {
-        pageArg = matchedPage.id;
-        break;
-      }
-    }
+  if (values.list || positionals.includes('list')) {
+    printList();
+    return;
   }
 
-  // 3. Check for positional argument matching a page ID (e.g. `npm run record quickstart`)
-  if (!pageArg) {
-    for (const arg of args) {
-      if (!arg.startsWith('-')) {
-        const cleanArg = arg.toLowerCase();
-        const matchedPage = PAGES.find((p) => p.id.toLowerCase() === cleanArg);
-        if (matchedPage) {
-          pageArg = matchedPage.id;
-          break;
-        }
-      }
-    }
+  const known = new Set(Object.keys(OPTIONS));
+  const words = [
+    ...Object.entries(values)
+      .filter(([k, v]) => !known.has(k) && v === true)
+      .map(([k]) => k),
+    ...positionals.filter((p) => p !== 'list'),
+  ].map((w) => w.replace(/^-+/, ''));
+
+  const byId = (w: string): boolean => PAGES.some((p) => p.id.toLowerCase() === w.toLowerCase());
+  const pageWord = words.find(byId);
+  const queries = words.filter((w) => !byId(w));
+
+  const limitRaw = values.limit ?? values.first ?? values.count;
+  const limit = limitRaw ? Number.parseInt(String(limitRaw), 10) : undefined;
+  const shard = parseShard(values.shard ? String(values.shard) : undefined);
+  if (values.shard && !shard) {
+    console.error(`❌ --shard expects K/N, got "${values.shard}"`);
+    process.exit(1);
   }
 
-  // 4. Check for filter flag: --filter=xxx or --filter xxx
-  let filterArg: string | undefined = args
-    .find((a) => a.startsWith('--filter='))
-    ?.split('=')[1];
-  if (!filterArg) {
-    const filterIndex = args.indexOf('--filter');
-    if (filterIndex !== -1 && args[filterIndex + 1]) {
-      filterArg = args[filterIndex + 1];
-    }
-  }
+  const idList = values.pages ?? values.only;
+  const { pages: targetPages, shard: applied } = selectPages(PAGES, {
+    ids: idList ? String(idList).split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+    page: values.page ? String(values.page) : pageWord,
+    filter: values.filter ? String(values.filter) : undefined,
+    queries,
+    limit: limit && Number.isFinite(limit) ? limit : undefined,
+    shard,
+  });
 
-  // 4. Determine pages to record
-  const multiPagesArg = rawArgs.find((a) => a.startsWith('--pages=') || a.startsWith('--only='));
-  let targetPages = PAGES;
-
-  if (multiPagesArg) {
-    const ids = multiPagesArg
-      .split('=')[1]
-      .split(',')
-      .map((s) => s.trim().toLowerCase());
-    targetPages = PAGES.filter((p) => ids.includes(p.id.toLowerCase()));
-  } else if (pageArg) {
-    targetPages = PAGES.filter(
-      (p) => p.id.toLowerCase() === pageArg!.toLowerCase(),
+  if (applied) {
+    console.log(
+      `\n🧩 [Matrix Sharding]: Worker Shard ${applied.index}/${applied.total} -> Recording ${targetPages.length} pages (index ${applied.from + 1} to ${applied.to})`,
     );
-  } else if (filterArg) {
-    const q = filterArg.toLowerCase();
-    targetPages = PAGES.filter(
-      (p) => p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
-    );
-  } else if (args.length > 0) {
-    const queries = args.map((a) => a.replace(/^-+/, '').toLowerCase());
-    targetPages = PAGES.filter((p) =>
-      queries.some(
-        (q) => p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q),
-      ),
-    );
-  }
-
-  // 5. Check for limit flag: --limit=N or --first=N
-  let limitArg: number | undefined;
-  const limitMatch = rawArgs.find(
-    (a) => a.startsWith('--limit=') || a.startsWith('--first=') || a.startsWith('--count='),
-  );
-  if (limitMatch) {
-    const num = parseInt(limitMatch.split('=')[1], 10);
-    if (!isNaN(num) && num > 0) limitArg = num;
-  } else {
-    const limitIndex = rawArgs.findIndex(
-      (a) => a === '--limit' || a === '--first' || a === '--count',
-    );
-    if (limitIndex !== -1 && rawArgs[limitIndex + 1]) {
-      const num = parseInt(rawArgs[limitIndex + 1], 10);
-      if (!isNaN(num) && num > 0) limitArg = num;
-    }
-  }
-
-  if (limitArg && limitArg > 0) {
-    targetPages = targetPages.slice(0, limitArg);
-  }
-
-  // 6. Check for shard flag: --shard=K/N (e.g. --shard=1/3, --shard=2/3)
-  const shardMatch = rawArgs.find((a) => a.startsWith('--shard='));
-  if (shardMatch) {
-    const val = shardMatch.split('=')[1] || '';
-    const parts = val.split('/');
-    if (parts.length === 2) {
-      const curr = parseInt(parts[0], 10);
-      const total = parseInt(parts[1], 10);
-      if (!isNaN(curr) && !isNaN(total) && total > 0 && curr > 0 && curr <= total) {
-        const chunkSize = Math.ceil(targetPages.length / total);
-        const start = (curr - 1) * chunkSize;
-        const end = Math.min(start + chunkSize, targetPages.length);
-        targetPages = targetPages.slice(start, end);
-        console.log(`\n🧩 [Matrix Sharding]: Worker Shard ${curr}/${total} -> Recording ${targetPages.length} pages (index ${start + 1} to ${end})`);
-      }
-    }
   }
 
   if (targetPages.length === 0) {
-    if (shardMatch) {
-      console.log(
-        `\nℹ️ [Matrix Sharding]: No pages assigned to this worker shard. Exiting cleanly.`,
-      );
+    // A shard with nothing to do is normal when there are fewer pages than
+    // workers; failing it would fail the matrix for no reason.
+    if (applied) {
+      console.log(`\nℹ️ [Matrix Sharding]: No pages assigned to this worker shard. Exiting cleanly.`);
       process.exit(0);
     }
-    console.error(`❌ No matching page found for query: ${args.join(' ')}`);
+    console.error(`❌ No matching page found for: ${rawArgs.join(' ') || '(nothing)'}`);
     console.log(`Available page IDs: ${PAGES.map((p) => p.id).join(', ')}`);
     console.log(`Tip: run \`npm run record -- --list\` to view all routes.`);
     process.exit(1);
   }
 
-  await assertServicesUp(rawArgs.includes('--force'));
+  await assertServicesUp(Boolean(values.force));
 
   console.log(`\n======================================================`);
   console.log(
@@ -268,6 +235,7 @@ async function main(): Promise<void> {
       durationSec,
       error: res.error,
       warnings: res.warnings,
+      consoleErrors: res.consoleErrors,
     });
   }
 
@@ -282,13 +250,13 @@ async function main(): Promise<void> {
     if (r.success) {
       const badge = r.warnings.length > 0 ? '⚠️  [PASS*]' : '✅ [PASS] ';
       console.log(`   ${badge} (${r.durationSec}s) ${r.name} -> ${r.filename}`);
-      for (const w of r.warnings) console.log(`        · ${w}`);
     } else {
       console.log(
-        `   ❌ [FAIL]  (${r.durationSec}s) ${r.name} -> ${r.filename}`,
+        `   ❌ [FAIL]  (${r.durationSec}s) ${r.name} -> ${r.filename || '(no video)'}`,
       );
       console.log(`        · ${r.error || 'Error captured'}`);
     }
+    for (const w of r.warnings) console.log(`        · ${w}`);
   }
   console.log(`======================================================`);
   console.log(
@@ -296,7 +264,18 @@ async function main(): Promise<void> {
       (warnedCount > 0 ? ` (${warnedCount} with notes)` : '') +
       `, ${failedCount} failed`,
   );
-  console.log(`📁 Video files saved to: ${join(ROOT, 'autorecorder', 'videos')}\n`);
+
+  const run: RunResults = {
+    timestamp: new Date().toISOString(),
+    args: rawArgs,
+    passed: results.length - failedCount,
+    failed: failedCount,
+    results,
+  };
+  mkdirSync(VIDEOS_DIR, { recursive: true });
+  writeFileSync(join(VIDEOS_DIR, RESULTS_FILE), JSON.stringify(run, null, 2), 'utf-8');
+  console.log(`📁 Video files saved to: ${VIDEOS_DIR}`);
+  console.log(`📄 Results: ${join(VIDEOS_DIR, RESULTS_FILE)}\n`);
 
   if (failedCount > 0) {
     process.exit(1);

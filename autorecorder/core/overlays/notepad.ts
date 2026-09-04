@@ -1,5 +1,6 @@
 import { type Page } from 'playwright';
 import { humanClick, humanGlide, sleep } from './cursor';
+import { keystrokeDelay, type TypeRhythm } from './human';
 
 /**
  * A Windows 11 Notepad window, drawn inside the page.
@@ -121,27 +122,18 @@ export async function openNotepad(
   await sleep(650);
 }
 
-export interface TypeOptions {
-  /** Mean per-character delay. Ordinary typing sits around 60-90ms. */
-  charDelayMs?: number;
-  /** How far each keystroke strays from the mean, 0-1. */
-  jitter?: number;
-  /** Chance, per space, of pausing as if thinking. */
-  thinkChance?: number;
-}
+export type TypeOptions = TypeRhythm;
 
 /**
  * Types into the Notepad window one character at a time, with the uneven rhythm
- * a person has: jittered keystrokes, longer gaps after punctuation and line
- * breaks, and the occasional pause mid-sentence.
+ * a person has — the same rhythm the chat composer and the terminal use, from
+ * `overlays/human.ts`.
  */
 export async function typeInNotepad(
   page: Page,
   text: string,
   opts: TypeOptions = {},
 ): Promise<void> {
-  const { charDelayMs = 62, jitter = 0.55, thinkChance = 0.07 } = opts;
-
   await page.evaluate(
     (ids: { textId: string; caretId: string }) => {
       const el = document.getElementById(ids.textId);
@@ -176,11 +168,7 @@ export async function typeInNotepad(
       { textId: TEXT_ID, caretId: CARET_ID, posId: POS_ID, c: ch, l: line, col },
     );
 
-    let delay = charDelayMs * (1 + (Math.random() * 2 - 1) * jitter);
-    if (ch === ' ' && Math.random() < thinkChance) delay += 240 + Math.random() * 420;
-    if ('.,:—-'.includes(ch)) delay += 120 + Math.random() * 170;
-    if (ch === '\n') delay += 300 + Math.random() * 260;
-    await sleep(Math.max(18, delay));
+    await sleep(keystrokeDelay(ch, opts));
   }
 }
 

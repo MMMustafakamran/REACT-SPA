@@ -283,11 +283,22 @@ async function runTrack(track, report) {
   console.log('\n▶ [Step] Running the autorecorder...');
   const recorderCmd =
     forwardArgs.length > 0 ? `npm run record -- ${forwardArgs.join(' ')}` : 'npm run record';
-  runSync(
-    isWindows ? `set TRACK=${track}&& ${recorderCmd}` : `TRACK=${track} ${recorderCmd}`,
-    RECORDER_DIR,
-    `Recording the ${track} track`,
-  );
+  // The recorder writes videos/RECORD_RESULTS.json for the run it just did.
+  // Three tracks record in turn, so each one's file is moved aside under the
+  // track's name before the next overwrites it; the report reads those.
+  const resultsFile = path.join(VIDEOS_DIR, 'RECORD_RESULTS.json');
+  const trackResultsFile = path.join(VIDEOS_DIR, `RECORD_RESULTS.${track}.json`);
+  fs.rmSync(resultsFile, { force: true });
+  fs.rmSync(trackResultsFile, { force: true });
+  try {
+    runSync(
+      isWindows ? `set TRACK=${track}&& ${recorderCmd}` : `TRACK=${track} ${recorderCmd}`,
+      RECORDER_DIR,
+      `Recording the ${track} track`,
+    );
+  } finally {
+    if (fs.existsSync(resultsFile)) fs.renameSync(resultsFile, trackResultsFile);
+  }
 
   report.tracks[track].recorded = true;
   stopServices();

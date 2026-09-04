@@ -103,6 +103,13 @@ export interface ProjectConfig {
    */
   demoSuffix: string;
 
+  /**
+   * Project-wide overrides of the recorder's fixed waits. Optional; the
+   * defaults in `core/timeouts.ts` suit a warm Next.js dev server. Raise
+   * `demoNavMs` for a stack whose first request compiles the route.
+   */
+  timeouts?: Partial<import('../core/types').RecorderTimeouts>;
+
   /** Which scaffold is being recorded. */
   track: Track;
 

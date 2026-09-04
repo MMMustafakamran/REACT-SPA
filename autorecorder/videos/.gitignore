@@ -7,3 +7,4 @@
 # Publish them as release assets or to a bucket instead of committing them.
 *.webm
 !.gitignore
+RECORD_RESULTS.json

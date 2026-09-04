@@ -73,7 +73,7 @@ export const PAGES = definePages([
       { label: 'vite', logFile: logPathFor('dev') },
     ],
 
-    prompt: 'Can you tell me a joke?',
+    prompt: 'Hey, are you connected? Tell me a quick fun fact about kites.',
     waitAfterPromptMs: 4000,
   },
 ]);

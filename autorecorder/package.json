@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "record": "tsx cli.ts",
-    "record:all": "tsx cli.ts",
     "record:list": "tsx cli.ts --list",
     "doctor": "tsx cli.ts --doctor",
     "doctor:online": "tsx cli.ts --doctor --online",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "core:check": "node scripts/core-manifest.mjs --check",
+    "core:write": "node scripts/core-manifest.mjs --write",
+    "check": "npm run typecheck && npm test && npm run core:check"
   },
   "dependencies": {
     "playwright": "^1.51.0",
