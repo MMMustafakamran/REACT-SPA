@@ -212,9 +212,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           # Named for its contents, not the run. `bundle` merges these into one
-          # archive that carries the run stamp, and `separate-directories` uses
-          # each source artifact's name as its folder -- so a run-stamped name
-          # here would produce `<run>/<run>-drift/drift.txt`.
+          # archive that carries the run stamp; only that archive is named for
+          # the run, so a run-stamped name here would just be repeated inside it.
           name: drift
           path: drift.txt
           retention-days: 30
@@ -295,19 +294,53 @@ jobs:
             echo "### ${{ matrix.track }} produced no report" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      # The bundle is flat: every clip at the top, one `logs/` folder, and the
+      # reports beside them. It used to open as npm/, pnpm/, yarn/ and drift/,
+      # which meant hunting through four folders to watch three videos and made
+      # the logs of one run look like the logs of three.
+      #
+      # Flattening is safe because almost everything is already stamped with its
+      # track by the code that writes it -- `RSPA-npm-01-Quickstart.webm`,
+      # `logs/npm-dev.log`, `RECORD_RESULTS.npm.json`. The two reports are not,
+      # so they are stamped here; that is the whole reason the folders existed.
+      - name: Stage this track's files for the flat bundle
+        if: always()
+        run: |
+          mkdir -p bundle/logs
+          cp autorecorder/videos/*.webm bundle/ 2>/dev/null || true
+          cp -r autorecorder/videos/logs/. bundle/logs/ 2>/dev/null || true
+          cp autorecorder/videos/RECORD_RESULTS.*.json bundle/ 2>/dev/null || true
+
+          if [ -f autorecorder/videos/RUN_REPORT.md ]; then
+            cp autorecorder/videos/RUN_REPORT.md "bundle/RUN_REPORT.${{ matrix.track }}.md"
+          fi
+          if [ -f autorecorder/videos/RUN_REPORT.json ]; then
+            cp autorecorder/videos/RUN_REPORT.json "bundle/RUN_REPORT.${{ matrix.track }}.json"
+          fi
+          # Not stamped: every track renders the same drift, so three copies
+          # would be three identical files. One overwrites the other and that is
+          # the correct outcome.
+          if [ -f autorecorder/videos/DOC_DRIFT.md ]; then
+            cp autorecorder/videos/DOC_DRIFT.md bundle/DOC_DRIFT.md
+          fi
+
+          # An empty logs/ would upload as nothing and read as "no logs were
+          # kept" rather than "this track never started its services".
+          if [ -z "$(ls -A bundle/logs 2>/dev/null)" ]; then
+            echo "no session logs were captured for ${{ matrix.track }}" > bundle/logs/EMPTY.txt
+          fi
+
+          echo "--- staged for the bundle ---"
+          find bundle -type f | sort
+
       - name: Upload recordings, sessions and logs
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          # See the drift upload above: this becomes a folder inside the merged
-          # archive, so it is the track and nothing else.
+          # See the drift upload above: the merged archive is flat, so this name
+          # is only how the bundle job finds the artifact, never a folder in it.
           name: ${{ matrix.track }}
-          path: |
-            autorecorder/videos/*.webm
-            autorecorder/videos/RUN_REPORT.*
-            autorecorder/videos/RECORD_RESULTS*.json
-            autorecorder/videos/DOC_DRIFT.md
-            autorecorder/videos/logs/**
+          path: bundle
           retention-days: 30
           if-no-files-found: warn
 
@@ -331,12 +364,16 @@ jobs:
           # Everything this run uploaded. The merged artifact is created after
           # the match, so it cannot match itself.
           pattern: '*'
-          # Every track writes RUN_REPORT.md, RUN_REPORT.json and a logs/ tree
-          # at identical paths. Flattened, a three-track run would leave one
-          # report and one track's logs, silently. Kept apart, the zip opens as
-          # npm/, pnpm/, yarn/ and drift/ -- which is also how anyone reading it
-          # wants it.
-          separate-directories: true
+          # Flat, so the zip opens as three clips, one logs/ folder and the
+          # reports -- not as npm/, pnpm/, yarn/ and drift/ to be dug through.
+          # `separate-directories` is left off (its default) because the staging
+          # step above already stamps the only two files that collide; without
+          # that step a flat merge would silently keep one track's RUN_REPORT.
+          # Every other name carries its track already.
+          #
+          # DOC_DRIFT.md is the deliberate exception: each track renders the
+          # same drift, so one copy overwriting an identical one is right.
+          #
           # Leave exactly one artifact on the run page. The per-track uploads
           # are inputs to this, not results to keep beside it.
           delete-merged: true

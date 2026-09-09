@@ -199,12 +199,30 @@ whether npm and yarn work — *which* manager fails is itself the finding.
 Each track uploads its own artifact and the `bundle` job merges all of them —
 plus the drift report — into a single zip named for the run, deleting the
 originals. Otherwise a green nightly leaves four zips on the run page to
-download and unpack separately, three of which have a `RUN_REPORT.md` at the
-same path. `separate-directories` keeps them as `npm/`, `pnpm/`, `yarn/` and
-`drift/` inside the one archive — which is why the per-track uploads are named
-for the track alone and only the merged archive carries the run stamp. It runs on `always()`, because a failed track
+download and unpack separately. It runs on `always()`, because a failed track
 is a result worth reading and a halted run still has a drift report worth
 keeping.
+
+That zip is **flat**: three clips, one `logs/` folder, the reports beside them.
+
+```
+React-SPA-09Sep2026-0640UTC/
+├── RSPA-npm-01-Quickstart.webm
+├── RSPA-pnpm-01-Quickstart.webm
+├── RSPA-yarn-01-Quickstart.webm
+├── logs/            npm-, pnpm- and yarn-prefixed session and console logs
+├── RUN_REPORT.<track>.md / .json
+├── RECORD_RESULTS.<track>.json
+└── drift.txt
+```
+
+It used to open as `npm/`, `pnpm/`, `yarn/` and `drift/`, because three tracks
+each write `RUN_REPORT.md` at the same path and a flat merge would silently keep
+one of them. Everything else was already stamped with its track by whatever
+wrote it — the video filenames, `logs/npm-dev.log`, `RECORD_RESULTS.npm.json` —
+so the fix is to stamp those two reports in a staging step before upload and let
+the merge flatten. Four folders to dig through was a high price for two
+filenames.
 
 The track list is computed in the `drift` job and passed to the matrix as JSON.
 Turning `npm,pnpm` into a matrix array with inline expressions takes three
