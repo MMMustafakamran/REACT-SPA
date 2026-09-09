@@ -10,7 +10,7 @@ tab the docs publish.
 | **Pages tracked**   | 2 — `/react-spa` (the quickstart) and `/react-spa/using-these-docs`            |
 | **Doc sync date**   | Machine-maintained — `doc-snapshot/manifest.json` → `syncedAt`                 |
 | **Toolchain**       | Node 26.7.0 · npm 12.0.2 · pnpm 11.23.0                                       |
-| **Packages**        | `@copilotkit/react-core` ^1.69.3 · `@copilotkit/runtime` ^1.69.3               |
+| **Packages**        | `@copilotkit/react-core` ^1.70.3 · `@copilotkit/runtime` ^1.70.3               |
 | **Test status**     | All three tracks pass — install, runtime, app, and a streamed reply            |
 | **Recordings**      | `RSPA-{npm,pnpm,yarn}-01-Quickstart.webm`                                      |
 
@@ -133,6 +133,22 @@ requests then land on whichever accepts first — `localhost` reached the runtim
 `127.0.0.1` reached uvicorn and answered `{"detail":"Not Found"}`, which reads
 exactly like a broken runtime.
 
+**6 · The pnpm tab installs an older CopilotKit than the npm and yarn tabs,
+for 24 hours after every release.** pnpm 11 defaults `minimumReleaseAge` to 1440
+minutes and refuses any version published more recently. The 2026-09-09 run
+caught it: 1.70.2 and 1.70.3 had shipped the evening before, so npm and yarn took
+1.70.3 while pnpm took **1.70.1**, six days old — the newest version that cleared
+the gate. Same range, same command, same morning, two different minor versions.
+
+Two consequences the page does not mention. A reader comparing the three tabs
+gets three different trees for a day after any release. And once the range is
+raised to `^1.70.3` — which only 1.70.3 satisfies — pnpm's non-strict default
+installs it anyway and writes a `minimumReleaseAgeExclude` list into
+`pnpm-workspace.yaml`, a file and a setting the quickstart never names.
+
+Not a defect in the page's instructions; a defect in what the page leaves
+unsaid. Nothing here is worked around in the scaffolds.
+
 `OPENAI_API_KEY` must be exported in the terminal running the runtime — the
 runtime process holds it, and it never reaches the browser.
 
@@ -145,7 +161,7 @@ live prompt in the app. One video per track, selected by
 `TRACK=npm|pnpm|yarn`. See [autorecorder/README.md](autorecorder/README.md).
 
 Every clip states its versions, on both sides of rule 4. The `package.json` tab
-is the **declared** side — the `^1.69.3` ranges the doc's install step produced.
+is the **declared** side — the `^1.70.3` ranges the doc's install step produced.
 The **installed** side is read out of that track's `node_modules` at record time
 by `autorecorder/core/versions.ts` and typed into Notepad over the finished
 demo, so a viewer can see which resolution the prompt actually ran against

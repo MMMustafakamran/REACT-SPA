@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@copilotkit/react-core": "^1.69.3",
-    "@copilotkit/runtime": "^1.69.3",
+    "@copilotkit/react-core": "^1.70.3",
+    "@copilotkit/runtime": "^1.70.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

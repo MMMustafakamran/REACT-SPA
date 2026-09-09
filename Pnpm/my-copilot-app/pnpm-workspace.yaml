@@ -23,3 +23,28 @@
 # For the doc review: a reader on the quickstart's pnpm tab running pnpm 10 or
 # newer hits this failure too, and the page says nothing about it.
 dangerouslyAllowAllBuilds: true
+# Written by `pnpm install`, not by hand.
+#
+# pnpm 11 defaults `minimumReleaseAge` to 1440 minutes: a version published in
+# the last 24 hours is not installed. `@copilotkit/*` 1.70.3 was ~14 hours old
+# when the ranges were raised to `^1.70.3`, and no older version satisfies that
+# range -- so pnpm took the newest anyway (the built-in default is non-strict)
+# and recorded the exception here.
+#
+# Left committed because CI's `pnpm install` would write the same list, and a
+# run that rewrites a tracked file is a diff to explain every morning. It goes
+# stale harmlessly: it names exact versions, so it stops applying the moment the
+# ranges move again.
+#
+# For the doc review: the quickstart's pnpm tab produces a file the page never
+# mentions, carrying a supply-chain exclusion the reader did not ask for. See
+# finding 6 in the root README.
+minimumReleaseAgeExclude:
+  - '@copilotkit/a2ui-renderer@1.70.3'
+  - '@copilotkit/core@1.70.3'
+  - '@copilotkit/react-core@1.70.3'
+  - '@copilotkit/runtime-client-gql@1.70.3'
+  - '@copilotkit/runtime@1.70.3'
+  - '@copilotkit/shared@1.70.3'
+  - '@copilotkit/web-components@1.70.3'
+  - '@copilotkit/web-inspector@1.70.3'

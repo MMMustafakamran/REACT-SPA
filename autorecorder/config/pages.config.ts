@@ -54,7 +54,7 @@ export const PAGES = definePages([
     // claim at all: package.json, on screen so the clip states which versions
     // the three above were verified against. PROJECT_GOAL rule 4 wants every
     // finding pinned to installed vs declared, and this is the declared half —
-    // `^1.69.3`, a range. The installed half is read out of node_modules at
+    // `^1.70.3`, a range. The installed half is read out of node_modules at
     // record time and written into the Notepad note during the demo step, so
     // the two halves are visible in the same clip and can be compared.
     ideFile: src('server.ts'),
