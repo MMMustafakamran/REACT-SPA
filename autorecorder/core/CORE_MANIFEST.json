@@ -4,7 +4,7 @@
   "diagnostics.ts": "a8ab7c634dfdb025",
   "doctor.ts": "53a0b00681ec28cc",
   "engine.ts": "51549fe27f32fbac",
-  "ide/generator.ts": "6c9a24745e22c7fc",
+  "ide/generator.ts": "3d5d345e5d6d913b",
   "overlays/alert-dialog.ts": "1558c8ec248df353",
   "overlays/cursor.ts": "a5d297623d0e8ca4",
   "overlays/human.ts": "899c521adde23874",
@@ -13,5 +13,5 @@
   "select.ts": "774c0746da8bae3e",
   "timeouts.ts": "ba4e52b004b4fa04",
   "types.ts": "dbd53d9b8cfc1937",
-  "versions.ts": "524cafa17d36a91d"
+  "versions.ts": "49b76823c341c20d"
 }

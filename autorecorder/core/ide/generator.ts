@@ -457,6 +457,19 @@ export async function generateIdeHtml(
   const primaryLang = getLangLabel(primaryExt);
   const projectName = basename(rootDir) || 'workspace';
 
+  // The status bar follows the active tab, the way the real one does. It used
+  // to be computed once from the primary file, which went unnoticed while every
+  // tab was TypeScript -- a package.json tab made it read "TypeScript JSX" over
+  // a JSON file, and a status bar that lies about the pane above it undoes the
+  // whole point of simulating the editor.
+  const tabStatus = tabsList.map((tab) => ({
+    lang: getLangLabel(basename(tab.filePath).split('.').pop() ?? ''),
+    line: tab.startLine,
+  }));
+  const tabStatusJson = JSON.stringify(tabStatus);
+  // The first frame is whichever tab opens active, not necessarily tab 0.
+  const openStatus = tabStatus[activeTabIdx] ?? { lang: primaryLang, line: startLine };
+
   const terminalSessionsHtml = terminalSessions
     .map(
       (t, i) => `
@@ -1172,10 +1185,10 @@ export async function generateIdeHtml(
         <span class="statusbar-item">&#x2297; 0 &nbsp;&#x26A0; 0</span>
       </div>
       <div class="statusbar-right">
-        <span class="statusbar-item">Ln ${startLine}, Col 1</span>
+        <span class="statusbar-item" id="statusbar-pos">Ln ${openStatus.line}, Col 1</span>
         <span class="statusbar-item">Spaces: 2</span>
         <span class="statusbar-item">UTF-8</span>
-        <span class="statusbar-item">${primaryLang}</span>
+        <span class="statusbar-item" id="statusbar-lang">${openStatus.lang}</span>
         <span class="statusbar-item">Prettier &#x2713;</span>
         <span class="statusbar-item">&#x1F514;</span>
       </div>
@@ -1183,6 +1196,8 @@ export async function generateIdeHtml(
   </div>
 
   <script>
+    var IDE_TAB_STATUS = ${tabStatusJson};
+
     window.switchIdeTab = function(idx) {
       var tabs = document.querySelectorAll('.tab');
       var views = document.querySelectorAll('.editor-body-view');
@@ -1208,6 +1223,14 @@ export async function generateIdeHtml(
         } else {
           fileNodes[j].classList.remove('active-file');
         }
+      }
+
+      var status = IDE_TAB_STATUS[idx];
+      if (status) {
+        var langEl = document.getElementById('statusbar-lang');
+        if (langEl) langEl.textContent = status.lang;
+        var posEl = document.getElementById('statusbar-pos');
+        if (posEl) posEl.textContent = 'Ln ' + status.line + ', Col 1';
       }
     };
 

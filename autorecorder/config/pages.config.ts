@@ -50,13 +50,23 @@ export const PAGES = definePages([
     //   App.tsx     the absolute runtimeUrl — the one instruction that does not
     //               carry over from the Next.js quickstarts
     //
-    // Ordered as the doc introduces them.
+    // Ordered as the doc introduces them, then a fourth tab that is not a
+    // claim at all: package.json, on screen so the clip states which versions
+    // the three above were verified against. PROJECT_GOAL rule 4 wants every
+    // finding pinned to installed vs declared, and this is the declared half —
+    // `^1.69.3`, a range. The installed half is read out of node_modules at
+    // record time and written into the Notepad note during the demo step, so
+    // the two halves are visible in the same clip and can be compared.
     ideFile: src('server.ts'),
     startLine: 16,
     endLine: 26,
     extraTabs: [
       { filePath: src('src/main.tsx'), startLine: 1, endLine: 10 },
       { filePath: src('src/App.tsx'), startLine: 1, endLine: 12 },
+      // The two `@copilotkit/*` lines of the dependencies block. The file is
+      // 28 lines, so the whole of it is on screen either way and the range is
+      // only choosing what the eye lands on.
+      { filePath: src('package.json'), startLine: 13, endLine: 14 },
     ],
 
     // Two terminals, because the page's whole subject is that a SPA needs a

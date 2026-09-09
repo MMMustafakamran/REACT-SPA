@@ -150,7 +150,7 @@ autorecorder/
 │   └── selectors.config.ts       how to find the chat surface
 │
 ├── actions/                    ← ★ what to DO on each page
-│   └── index.ts                  page id → handler registry (empty here)
+│   └── index.ts                  page id → handler registry (one entry here)
 │
 ├── core/                       ← locally forked; see the note below
 │   ├── CORE_MANIFEST.json        hash per core file; `npm run core:check` enforces it
@@ -162,6 +162,7 @@ autorecorder/
 │   ├── select.ts                 which pages a `record` invocation means
 │   ├── timeouts.ts               every fixed wait, with project/page overrides
 │   ├── types.ts                  PageDefinition → PageRecordConfig, ActionContext
+│   ├── versions.ts               declared vs installed @copilotkit/* for this track
 │   ├── ide/generator.ts          VS Code simulator with the integrated terminal
 │   └── overlays/                 Windows 11 taskbar, virtual cursor, human pacing
 │
@@ -181,10 +182,11 @@ byte-identical until they ask for it. Everything else in `core/` tracks the
 shared suite: `node scripts/core-manifest.mjs --diff ../../MsPy-angular/autorecorder`
 lists exactly which files this fork differs in.
 
-`actions/index.ts` is deliberately empty: one page driving CopilotKit's own
-`<CopilotChat />` with a single prompt is exactly `runStandardAction`. The
-reference repo's sixteen handlers all addressed demo routes that do not exist in
-a single-page app, so they were deleted rather than kept.
+`actions/index.ts` holds one handler, and only just: driving CopilotKit's own
+`<CopilotChat />` with a single prompt is exactly `runStandardAction`, and the
+handler calls it and then writes the versions note. The reference repo's sixteen
+handlers all addressed demo routes that do not exist in a single-page app, so
+they were deleted rather than kept.
 
 ---
 
@@ -193,14 +195,30 @@ a single-page app, so they were deleted rather than kept.
 1. **Doc page** — opens `https://docs.copilotkit.ai/react-spa`, waits for
    hydration, then scrolls at reading pace and rests the cursor on a code block.
    Clicks VS Code on the simulated taskbar.
-2. **IDE** — renders `server.ts`, `main.tsx` and `App.tsx` from disk, Shiki-
-   highlighted, switching tabs. Each file's range covers the `[!code highlight]`
-   marker the doc itself prints on that line.
+2. **IDE** — renders `server.ts`, `main.tsx`, `App.tsx` and `package.json` from
+   disk, Shiki-highlighted, switching tabs. Each source file's range covers the
+   `[!code highlight]` marker the doc itself prints on that line; `package.json`
+   carries no marker and its range is the two `@copilotkit/*` dependency lines.
 3. **Terminal** — opens the IDE's integrated panel and moves between the two
    sessions: the runtime on `:8200`, then Vite on `:5173`. Clicks Chrome on the
    taskbar.
 4. **Demo** — opens `http://localhost:5173`, types the prompt, waits for the
-   reply to finish streaming, and pauses for reading.
+   reply to finish streaming, pauses for reading, then opens Notepad over the
+   answer and writes down the versions it ran on.
+
+### Versions, on both sides
+
+PROJECT_GOAL rule 4 asks every finding to pin installed against declared, so a
+clip states both. Step 2's `package.json` tab is the declared side, ranges and
+all. Step 4's note is the installed side: `core/versions.ts` reads the track's
+own `node_modules` at record time, so what the video claims is what the prompt
+actually ran against, and a package declared but never installed is written out
+as `NOT INSTALLED` and warned into the run summary rather than quietly falling
+back to the range.
+
+The note goes in Notepad, not on the page. A banner rendered into the demo route
+would duplicate this and the narration, and it would take vertical space from
+the chat that is the thing being demonstrated.
 
 ### What makes it read as a person
 

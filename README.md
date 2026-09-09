@@ -139,10 +139,19 @@ runtime process holds it, and it never reaches the browser.
 ## Recording
 
 `autorecorder/` films the quickstart in four beats: the doc page, then
-`server.ts` / `main.tsx` / `App.tsx` in a simulated VS Code, then that IDE's
-integrated terminal holding the two running services, then a live prompt in the
-app. One video per track, selected by `TRACK=npm|pnpm|yarn`. See
-[autorecorder/README.md](autorecorder/README.md).
+`server.ts` / `main.tsx` / `App.tsx` / `package.json` in a simulated VS Code,
+then that IDE's integrated terminal holding the two running services, then a
+live prompt in the app. One video per track, selected by
+`TRACK=npm|pnpm|yarn`. See [autorecorder/README.md](autorecorder/README.md).
+
+Every clip states its versions, on both sides of rule 4. The `package.json` tab
+is the **declared** side — the `^1.69.3` ranges the doc's install step produced.
+The **installed** side is read out of that track's `node_modules` at record time
+by `autorecorder/core/versions.ts` and typed into Notepad over the finished
+demo, so a viewer can see which resolution the prompt actually ran against
+without trusting a number someone typed into a config. A package that is
+declared but absent from `node_modules` says so on camera and warns in the run
+summary.
 
 The terminal is a replay of a real session, not a mock-up: services are started
 through `autorecorder/capture.ts`, which records the process's own working
