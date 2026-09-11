@@ -35,28 +35,6 @@ node ci/automate.mjs --tracks=pnpm --skip-install
 node ci/automate.mjs --quickstart --ignore-doc-drift
 ```
 
-## Result baseline
-
-`autorecorder/expected-results.json` holds the verdict a person signed off on
-for every page, keyed `<track>:<page id>` (`npm:quickstart`, `pnpm:quickstart`,
-`yarn:quickstart`) because the three package managers record the same pages
-and each is its own finding: `pass`, or `fail` with an `errorClass` and a
-normalised `message`, plus a `reason`. After every CI run the bundle job runs
-`compare-results.mjs` over all tracks and classifies each key as `unchanged`,
-`new-error`, `resolved`, `error-changed`, `notes-changed`, `untracked` or
-`not-run`. All unchanged → the package is safe to publish unseen. Anything else
-→ a `results-changed` issue names the tracks and pages.
-
-| Command | What it does |
-|---|---|
-| `npm run results:compare` | Compare `autorecorder/videos/` against the baseline (exit 3 on change) |
-| `npm run results:compare -- --dir <folder>` | Same, over a downloaded package |
-| `npm run results:accept -- --dir <folder>` | Fold the run's changes into the baseline; then edit the `reason` fields |
-| `npm run results:seed` | Write a baseline from scratch (first run only) |
-
-`ignoreNotes` in the baseline is a list of regexes for warnings that carry no
-information (a console line every page logs). The signature drops ports,
-URLs, timings and hex ids before comparing, so only the kind of failure counts.
 
 ## Flags
 

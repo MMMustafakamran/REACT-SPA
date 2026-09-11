@@ -102,8 +102,8 @@ function listVideos(tracks) {
           filename: r.filename || '',
           status: !r.success ? 'failed' : r.warnings?.length ? 'pass-with-notes' : 'pass',
           notes: [...(r.warnings ?? []), ...(r.error ? [r.error] : [])],
-          // Raw fields ride along so compare-results.mjs can rebuild a
-          // signature from RUN_REPORT.<track>.json when the raw file is missing.
+          // Raw fields ride along so a downloaded package still carries the
+          // error text and console lines when the raw results file is missing.
           error: r.error ?? null,
           consoleErrors: r.consoleErrors ?? [],
           sizeMB: r.filename ? sizeOf(path.join(VIDEOS_DIR, r.filename)) : 'n/a',

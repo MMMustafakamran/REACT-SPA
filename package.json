@@ -10,9 +10,6 @@
     "automate:locked": "node ci/automate.mjs --use-lockfile",
     "drift": "node ci/check-doc-drift.mjs",
     "drift:sync": "node ci/check-doc-drift.mjs --update",
-    "run-name": "node ci/run-name.mjs",
-    "results:compare": "node ci/compare-results.mjs",
-    "results:seed": "node ci/compare-results.mjs --seed",
-    "results:accept": "node ci/compare-results.mjs --accept"
+    "run-name": "node ci/run-name.mjs"
   }
 }
