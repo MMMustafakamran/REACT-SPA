@@ -421,7 +421,13 @@ export class RecordingEngine {
       await pause(2600);
     }
 
-    await page.unroute(ideUrl).catch(() => {});
+    // Bounded, because unbounded it can hang the whole run. `unroute` waits for
+    // in-flight handlers of the route it removes, and after some doc pages one
+    // never settles: seen 4/4 on the Learning page, whose Loom embed is the one
+    // thing it has that the others don't. The IDE window is finished with by
+    // now either way, and a leftover handler on a URL nothing else requests is
+    // harmless.
+    await Promise.race([page.unroute(ideUrl).catch(() => {}), sleep(3000)]);
   }
 
   async recordPage(config: PageRecordConfig): Promise<RecordResult> {
