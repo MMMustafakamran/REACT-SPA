@@ -59,8 +59,64 @@ export interface PageDefinition {
 
   /** Per-page overrides of the recorder's fixed waits. See `RecorderTimeouts`. */
   timeouts?: Partial<RecorderTimeouts>;
+
+  /**
+   * The take, as data. Pages whose handler was "send the prompt, rest the
+   * cursor on the thing under test, check it rendered" describe that here and
+   * use the standard handler; a bespoke handler in actions/ is only for pages
+   * whose failure diagnosis needs code (A2UI's two reasons, the write page's
+   * button-first flow).
+   */
+  demo?: DemoScript;
 }
 
+/** A place to rest the cursor: a selector (first visible match) or fixed coordinates. */
+export type DemoGlideTarget =
+  | string
+  | { selector: string; beatMs?: number; offset?: { x: number; y: number } }
+  | { x: number; y: number; beatMs?: number };
+
+/** A verdict on what the page shows once the reply is in. */
+export interface DemoCheck {
+  /** Playwright selector; `text=...` allowed. First match unless `last` is set. */
+  selector: string;
+  last?: boolean;
+  /** Pass when the element's text contains every entry (case-insensitive). */
+  contains?: string | string[];
+  /** Pass when the element is NOT visible. */
+  absent?: boolean;
+  /** Pass when the element's enabled state matches. */
+  enabled?: boolean;
+  timeoutMs?: number;
+  /** A failed check is a defect (`fail`) or a note on the clip (`warn`, default). */
+  severity?: 'fail' | 'warn';
+  /** Logged on a pass. */
+  ok?: string;
+  /** Reported on a miss. `{found}`/`{total}` expand for `contains` lists; `{text}` is what was read. */
+  message: string;
+}
+
+export interface DemoScript {
+  /** Before the prompt: rest on these, in order. Missing targets are skipped. */
+  before?: DemoGlideTarget[];
+  /** Composer submit timeout. */
+  sendTimeoutMs?: number;
+  /** Capture the browser alert the prompt provokes; `missing` is the warning if none fires. */
+  alert?: { missing: string };
+  /**
+   * After the prompt: the thing under test. Waited for, then rested on. If
+   * `required` is set and it never renders, that message is the take's defect.
+   */
+  render?: { selector: string; last?: boolean; timeoutMs?: number; beatMs?: number; required?: string };
+  /** Click this once `render` (or the prompt) is done, then wait for the follow-up reply. */
+  click?: { selector: string; missing: string; beatMs?: number };
+  /** After the prompt, before the reply finishes: rest on these, in order. */
+  glideTo?: DemoGlideTarget[];
+  /** Once the reply has finished. */
+  checks?: DemoCheck[];
+}
+
+/** A page definition with everything resolved. What the engine consumes. */
 /** A page definition with everything resolved. What the engine consumes. */
 export interface PageRecordConfig extends PageDefinition {
   docUrl: string;

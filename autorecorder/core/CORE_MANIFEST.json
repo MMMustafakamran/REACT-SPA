@@ -1,5 +1,5 @@
 {
-  "actions.ts": "37da6de5a9621d25",
+  "actions.ts": "3b8a741c65fc05c7",
   "console-capture.ts": "eb91fb4e440a816b",
   "diagnostics.ts": "a8ab7c634dfdb025",
   "doctor.ts": "53a0b00681ec28cc",
@@ -13,6 +13,6 @@
   "prewarm.ts": "ec794b197b456de2",
   "select.ts": "60efffca20c46b2c",
   "timeouts.ts": "ba4e52b004b4fa04",
-  "types.ts": "dbd53d9b8cfc1937",
+  "types.ts": "c956fa0a8892d1b8",
   "versions.ts": "49b76823c341c20d"
 }

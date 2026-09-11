@@ -1,10 +1,18 @@
 import { type Page } from 'playwright';
 import { SELECTORS } from '../config/selectors.config';
 import { fatalConsoleError } from './console-capture';
-import { humanClick, humanGlide, idleNudge, sleep } from './overlays/cursor';
+import { dismissAlertOverlay, installAlertOverlay } from './overlays/alert-dialog';
+import { beat, humanClick, humanGlide, idleNudge, sleep } from './overlays/cursor';
 import { chance, humanType, pause } from './overlays/human';
 import { TIMEOUTS } from './timeouts';
-import { type PageActionHandler, type PageRecordConfig } from './types';
+import {
+  type ActionContext,
+  type DemoCheck,
+  type DemoGlideTarget,
+  type PageActionHandler,
+  type PageRecordConfig,
+} from './types';
+
 
 /**
  * The agent never answered.
@@ -427,22 +435,148 @@ export function promptsFor(config: PageRecordConfig): string[] {
   return config.prompts?.length ? config.prompts : [config.prompt];
 }
 
+/**
+ * Rests the cursor on an element the page rendered: centre of its box, with a
+ * beat after. Returns false, without moving, when nothing matches -- the
+ * caller decides whether that is a finding.
+ */
+export async function glideToElement(
+  page: Page,
+  selector: string,
+  opts: { timeoutMs?: number; beatMs?: number; offset?: { x: number; y: number }; last?: boolean; label?: string } = {},
+): Promise<boolean> {
+  const all = page.locator(selector);
+  const el = opts.last ? all.last() : all.first();
+  if (!(await el.isVisible({ timeout: opts.timeoutMs ?? 4000 }).catch(() => false))) return false;
+  const box = await el.boundingBox();
+  if (!box) return false;
+  const x = opts.offset ? box.x + opts.offset.x : box.x + Math.min(box.width / 2, 250);
+  const y = opts.offset ? box.y + opts.offset.y : box.y + box.height / 2;
+  if (opts.label) console.log(`   🎯 ${opts.label} at (${Math.round(box.x)}, ${Math.round(box.y)})`);
+  await humanGlide(page, x, y, 22);
+  await beat(opts.beatMs ?? 1500);
+  return true;
+}
+
+async function glideAlong(page: Page, targets: DemoGlideTarget[]): Promise<void> {
+  for (const t of targets) {
+    if (typeof t === 'string') {
+      await glideToElement(page, t);
+    } else if ('selector' in t) {
+      await glideToElement(page, t.selector, { beatMs: t.beatMs, offset: t.offset });
+    } else {
+      await humanGlide(page, t.x, t.y, 22);
+      await beat(t.beatMs ?? 1500);
+    }
+  }
+}
+
+async function runCheck(page: Page, check: DemoCheck, ctx: ActionContext): Promise<void> {
+  const all = page.locator(check.selector);
+  const el = check.last ? all.last() : all.first();
+  const timeout = check.timeoutMs ?? 2000;
+  const visible = await el.isVisible({ timeout }).catch(() => false);
+  let pass: boolean;
+  let text = '';
+  let found = 0;
+  const wanted = check.contains === undefined ? [] : Array.isArray(check.contains) ? check.contains : [check.contains];
+  if (check.absent) {
+    pass = !visible;
+  } else if (check.enabled !== undefined) {
+    const enabled = await el.isEnabled({ timeout: 1000 }).catch(() => false);
+    pass = enabled === check.enabled;
+  } else if (wanted.length > 0) {
+    text = (await el.innerText().catch(() => '')).trim();
+    const lower = text.toLowerCase();
+    found = wanted.filter((w) => lower.includes(w.toLowerCase())).length;
+    pass = found === wanted.length;
+  } else {
+    pass = visible;
+  }
+  if (pass) {
+    if (check.ok) console.log(`   ✅ ${check.ok}`);
+    return;
+  }
+  const message = check.message
+    .replace('{found}', String(found))
+    .replace('{total}', String(wanted.length))
+    .replace('{text}', text ? JSON.stringify(text.slice(0, 80)) : '(empty)');
+  if (check.severity === 'fail') ctx.fail(message);
+  else ctx.warn(message);
+}
+
+/**
+ * The take most pages need: prompt, watch the reply, rest the cursor on what
+ * rendered, judge it. Everything page-specific comes from `config.demo`; a
+ * page with no `demo` block is a plain chat turn.
+ */
 export const runStandardAction: PageActionHandler = async (
   page: Page,
   config: PageRecordConfig,
   _rootPath,
   ctx,
 ) => {
+  const demo = config.demo ?? {};
   console.log(`   🔍 Detecting demo page & chat component rendering...`);
-  const initialMsgCount = await sendPrompt(page, config.prompt);
+
+  if (demo.before?.length) await glideAlong(page, demo.before);
+  if (demo.alert) await installAlertOverlay(page);
+
+  const initialMsgCount = await sendPrompt(page, config.prompt, { timeoutMs: demo.sendTimeoutMs ?? 15000 });
+
+  if (demo.alert) {
+    const shown = await dismissAlertOverlay(page);
+    if (shown) console.log(`   Browser alert captured and dismissed.`);
+    else ctx.warn(demo.alert.missing);
+  }
+
+  let rendered = true;
+  if (demo.render) {
+    const all = page.locator(demo.render.selector);
+    const el = demo.render.last ? all.last() : all.first();
+    rendered = await el
+      .waitFor({ state: 'visible', timeout: demo.render.timeoutMs ?? 20000 })
+      .then(() => true)
+      .catch(() => false);
+    if (rendered) {
+      await glideToElement(page, demo.render.selector, { last: demo.render.last, beatMs: demo.render.beatMs ?? 2000, label: 'Rendered' });
+    } else if (demo.render.required) {
+      ctx.fail(demo.render.required);
+    }
+  }
+
+  let sinceMsgCount = initialMsgCount;
+  if (demo.click && rendered) {
+    const btn = page.locator(demo.click.selector).first();
+    const box = (await btn.isVisible({ timeout: 4000 }).catch(() => false)) ? await btn.boundingBox() : null;
+    if (box) {
+      await humanGlide(page, box.x + box.width / 2, box.y + box.height / 2, 20);
+      await sleep(600);
+      await humanClick(page);
+      console.log(`   ✓ Clicked ${demo.click.selector}`);
+      await beat(demo.click.beatMs ?? 800);
+      sinceMsgCount = Math.max(sinceMsgCount, await getAssistantMessageCount(page));
+    } else {
+      ctx.fail(demo.click.missing);
+    }
+  }
+
+  if (demo.glideTo?.length) await glideAlong(page, demo.glideTo);
+
   const reply = await waitForAgentResponseCompletion(
     page,
     config.waitAfterPromptMs ?? 4000,
-    initialMsgCount,
+    sinceMsgCount,
     DEFAULT_ASSISTANT_MESSAGE_SELECTOR,
     { startTimeoutMs: ctx.timeouts.replyStartMs, streamTimeoutMs: ctx.timeouts.replyStreamMs },
-  );
+  ).catch((e) => {
+    // A page whose render step already failed has its defect; the silence is a consequence, not a second one.
+    if (!rendered && demo.render?.required) return { startedAfterMs: 0, chars: 0, streamTimedOut: false };
+    throw e;
+  });
   if (reply.streamTimedOut) {
     ctx.warn(`Reply still streaming after ${Math.round(ctx.timeouts.replyStreamMs / 1000)}s; the clip may end mid-answer.`);
   }
+
+  for (const check of demo.checks ?? []) await runCheck(page, check, ctx);
 };
