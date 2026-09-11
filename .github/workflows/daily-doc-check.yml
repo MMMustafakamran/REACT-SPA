@@ -21,7 +21,7 @@ on:
     #
     # This still cannot GUARANTEE 10:30 AM PKT — no `schedule:` can. If exact
     # timing ever matters, drive it externally via repository_dispatch.
-    - cron: '27 5 * * *'
+    - cron: '4 23 * * *'
   workflow_dispatch:
     inputs:
       tracks:
