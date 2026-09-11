@@ -211,10 +211,11 @@ export async function humanScrollDown(
   page: Page,
   totalPixels: number = 1600,
   durationMs: number = 3200,
+  opts: { toBottom?: boolean } = {},
 ): Promise<void> {
   // Resolve the scroller once and stash it, so every tick moves the same element.
   const actualTarget = (await page
-    .evaluate((requestedPixels) => {
+    .evaluate(({ requestedPixels, toBottom }) => {
       const candidates = [
         document.getElementById('nd-docs-layout'),
         document.querySelector('main'),
@@ -230,8 +231,10 @@ export async function humanScrollDown(
         ? nested.scrollHeight - nested.clientHeight
         : Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 
-      return Math.min(requestedPixels, Math.max(300, Math.floor(maxScroll * 0.75)));
-    }, totalPixels)
+      // `toBottom` lifts the 75% cap: the whole page, footer included.
+      const cap = toBottom ? maxScroll : Math.floor(maxScroll * 0.75);
+      return Math.min(requestedPixels, Math.max(300, cap));
+    }, { requestedPixels: totalPixels, toBottom: Boolean(opts.toBottom) })
     .catch(() => totalPixels)) as number;
 
   const readPos = (): Promise<number> =>
