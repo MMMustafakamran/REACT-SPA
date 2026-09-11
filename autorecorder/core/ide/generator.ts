@@ -668,7 +668,7 @@ export async function generateIdeHtml(
     .activity-group {
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 6px;
       align-items: center;
     }
     .activity-icon {
@@ -1093,50 +1093,66 @@ export async function generateIdeHtml(
       <!-- Activity Bar -->
       <aside class="activity-bar">
         <div class="activity-group">
-          <!-- Explorer (Active) -->
+          <!-- Explorer (Active): codicon "files", two stacked pages -->
           <div class="activity-icon active">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <path d="M4 4h6l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <path d="M8.5 3.5h7l4 4v11a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1z" />
+              <path d="M15.5 3.5v4h4" />
+              <path d="M6 7.5H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h9" />
             </svg>
           </div>
           <!-- Search -->
           <div class="activity-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="13.5" cy="10.5" r="6" />
+              <path d="M9.3 14.7 4 20" stroke-linecap="round" />
             </svg>
           </div>
           <!-- Source Control -->
           <div class="activity-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <circle cx="18" cy="18" r="3" />
-              <circle cx="6" cy="6" r="3" />
-              <path d="M18 15V9a9 9 0 0 0-9-9" />
-              <path d="M6 9v12" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="7" cy="6" r="2.2" />
+              <circle cx="7" cy="18" r="2.2" />
+              <circle cx="17" cy="9" r="2.2" />
+              <path d="M7 8.2v7.6" />
+              <path d="M17 11.2c0 3-2.5 3.6-5 4.1-2 .4-3.5 1-3.8 2.5" />
             </svg>
             <span class="badge">1</span>
           </div>
-          <!-- Run & Debug -->
+          <!-- Run & Debug: codicon "debug-alt", play with a bug -->
           <div class="activity-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <path d="M5 3l14 9-14 9V3z" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <path d="M5.5 4.5v15l7.5-4.6V9.1z" />
+              <path d="M13 12.5l6.5-4V19z" />
+              <path d="M11 4.5 19 9.5" />
+              <circle cx="17.5" cy="16.5" r="2.6" fill="#181818" />
+              <path d="M17.5 13.9v-1.2M15.3 15l-1.2-.6M19.7 15l1.2-.6M15.3 18l-1.2.6M19.7 18l1.2.6M17.5 19.1v1.2" stroke-linecap="round" />
             </svg>
           </div>
-          <!-- Extensions -->
+          <!-- Extensions: three squares and one lifted away -->
           <div class="activity-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <rect x="4" y="10" width="5.5" height="5.5" />
+              <rect x="9.5" y="15.5" width="5.5" height="5.5" />
+              <rect x="4" y="15.5" width="5.5" height="5.5" />
+              <rect x="13.5" y="3" width="6.5" height="6.5" />
             </svg>
           </div>
         </div>
         <div class="activity-group">
+          <!-- Account -->
           <div class="activity-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="8.5" />
+              <circle cx="12" cy="10" r="3" />
+              <path d="M6.3 18.2c1.2-2.3 3.2-3.4 5.7-3.4s4.5 1.1 5.7 3.4" />
+            </svg>
+          </div>
+          <!-- Manage (gear) -->
+          <div class="activity-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="2.8" />
+              <path d="M12 3.5l1.3 2.2 2.5-.6.7 2.5 2.5.7-.6 2.5 2.1 1.2-2.1 1.3.6 2.5-2.5.7-.7 2.5-2.5-.6L12 20.5l-1.3-2.1-2.5.6-.7-2.5-2.5-.7.6-2.5L3.5 12l2.1-1.2-.6-2.5 2.5-.7.7-2.5 2.5.6z" />
             </svg>
           </div>
         </div>
