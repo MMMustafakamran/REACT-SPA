@@ -207,7 +207,10 @@ function main() {
     let n = 0;
     for (const r of rows) {
       if (r.change === 'unchanged' || r.change === 'not-run') continue;
-      expected.pages[r.id] = toExpectation(r.actual, `accepted from run on ${diff.timestamp.slice(0, 10)} (${r.change})`);
+      // Keep the reviewed reason on an existing entry; only new entries get the stock one.
+      const prior = expected.pages[r.id]?.reason;
+      const stamp = `accepted from run on ${diff.timestamp.slice(0, 10)} (${r.change})`;
+      expected.pages[r.id] = toExpectation(r.actual, prior ? `${prior} | ${stamp}` : stamp);
       n++;
     }
     saveExpected(expected);
