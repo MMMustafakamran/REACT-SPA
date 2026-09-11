@@ -108,46 +108,78 @@ async function scrollDocCodeBlockIntoView(
 }
 
 /**
- * Selects a doc-page code block with the cursor: press at its first line, drag
- * to its last, a selection wash growing behind the cursor. The wash is a DOM
- * overlay rather than a real text selection, which sites style unpredictably
- * (and some code blocks are not selectable at all). Bounded at about a second.
+ * Selects a doc-page code block the way a reader does: press at its first
+ * line, drag to its last. The selection is the browser's own -- extended with
+ * `caretRangeFromPoint` under the cursor on every step -- so it paints exactly
+ * as a real drag would on that site. A page that refuses selection (user-select:
+ * none) gets the other gesture a reader makes: the cursor circling the block.
+ * Either way about a second.
  */
 async function dragSelectDocCode(
   page: Page,
   box: { x: number; y: number; width: number; height: number },
 ): Promise<void> {
-  const pad = 14;
-  const x0 = box.x + pad;
-  const y0 = box.y + pad + 6;
-  const y1 = Math.min(box.y + box.height - pad, 1000);
-  const x1 = box.x + Math.min(box.width - pad, pad + 420);
+  const pad = 12;
+  const x0 = box.x + pad + 2;
+  const y0 = box.y + 10;
+  const y1 = Math.min(box.y + box.height - pad - 4, 1010);
+  const x1 = box.x + Math.min(box.width - pad, pad + 460);
   await humanGlide(page, x0, y0, 18);
   await sleep(between(60, 140));
-  await page.evaluate(`(function(){
-    var c=document.getElementById('playwright-virtual-mouse');
-    if(c)c.style.transform='translate(-4px, -2px) scale(0.9)';
-    var w=document.createElement('div');
-    w.id='autorecord-doc-select';
-    w.style.cssText='position:fixed;left:${(box.x + 4).toFixed(1)}px;top:${(y0 - 10).toFixed(1)}px;width:${(box.width - 8).toFixed(1)}px;height:0px;background:rgba(38,79,120,0.55);pointer-events:none;z-index:2147483640;border-radius:3px;';
-    document.body.appendChild(w);
-  })()`).catch(() => {});
-  const steps = 14;
-  const stepMs = Math.min(70, Math.max(30, 900 / steps));
+  await page.evaluate(`(function(){var c=document.getElementById('playwright-virtual-mouse');if(c)c.style.transform='translate(-4px, -2px) scale(0.9)';})()`).catch(() => {});
+
+  const steps = 16;
+  const stepMs = Math.min(70, Math.max(30, 950 / steps));
+  let selecting = true;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     const x = x0 + (x1 - x0) * t + between(-3, 3);
     const y = y0 + (y1 - y0) * t;
-    await page.evaluate(`(function(){
-      var c=document.getElementById('playwright-virtual-mouse');
-      if(c){c.style.left='${x.toFixed(1)}px';c.style.top='${y.toFixed(1)}px';}
-      var w=document.getElementById('autorecord-doc-select');
-      if(w)w.style.height='${(y - (y0 - 10) + 8).toFixed(1)}px';
-    })()`).catch(() => {});
+    const selected = (await page
+      .evaluate(
+        ({ sx, sy, x, y }) => {
+          const c = document.getElementById('playwright-virtual-mouse');
+          if (c) {
+            c.style.left = x.toFixed(1) + 'px';
+            c.style.top = y.toFixed(1) + 'px';
+          }
+          const pre = (window as any).__autorecordDocCode as HTMLElement | null;
+          const sel = window.getSelection();
+          const from = (document as any).caretRangeFromPoint?.(sx, sy) as Range | null;
+          const to = (document as any).caretRangeFromPoint?.(x, y) as Range | null;
+          if (!pre || !sel || !from || !to || !pre.contains(to.startContainer)) return sel ? sel.toString().length : 0;
+          const range = document.createRange();
+          range.setStart(from.startContainer, from.startOffset);
+          range.setEnd(to.startContainer, to.startOffset);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return sel.toString().length;
+        },
+        { sx: x0, sy: y0, x, y },
+      )
+      .catch(() => 0)) as number;
+    if (i === 4 && selected === 0) {
+      selecting = false;
+      break;
+    }
     await sleep(jitter(stepMs, 0.35));
   }
   await sleep(between(50, 110));
   await page.evaluate(`(function(){var c=document.getElementById('playwright-virtual-mouse');if(c)c.style.transform='translate(-4px, -2px) scale(1)';})()`).catch(() => {});
+
+  if (!selecting) {
+    // Nothing selectable here: circle the block twice instead, loosely.
+    const cx = box.x + Math.min(box.width / 2, 320);
+    const cy = box.y + box.height / 2;
+    const rx = Math.min(box.width / 2 - 10, 300);
+    const ry = Math.min(box.height / 2 + 6, 120);
+    for (let k = 0; k < 2; k++) {
+      for (let a = 0; a <= 8; a++) {
+        const ang = (a / 8) * Math.PI * 2;
+        await humanGlide(page, cx + rx * Math.cos(ang) + between(-6, 6), cy + ry * Math.sin(ang) + between(-4, 4), 6);
+      }
+    }
+  }
 }
 
 /**
