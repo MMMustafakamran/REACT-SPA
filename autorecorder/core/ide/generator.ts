@@ -221,8 +221,15 @@ function getFileIcon(ext: string): string {
   if (isPython) {
     return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11.9 2c-4.4 0-4.1 1.9-4.1 1.9l.01 2h4.2v.6H5.8S2 6.1 2 10.6s3.3 4.3 3.3 4.3h2v-2.8s-.1-3.3 3.3-3.3h5.7s3.2.1 3.2-3.1-3.2-3.7-7.6-3.7z" fill="#3776ab"/><path d="M12.1 22c4.4 0 4.1-1.9 4.1-1.9l-.01-2h-4.2v-.6h6.2s3.8.4 3.8-4.1-3.3-4.3-3.3-4.3h-2v2.8s.1 3.3-3.3 3.3H7.7s-3.2-.1-3.2 3.1 3.2 3.7 7.6 3.7z" fill="#ffd43b"/><circle cx="9.5" cy="4.5" r=".7" fill="#fff"/><circle cx="14.5" cy="19.5" r=".7" fill="#fff"/></svg>`;
   }
+  if (ext === 'tsx' || ext === 'jsx') {
+    // Seti's React atom, the icon VS Code shows for .tsx.
+    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#519aba" stroke-width="1.4"><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/><circle cx="12" cy="12" r="1.6" fill="#519aba" stroke="none"/></svg>`;
+  }
+  if (ext === 'js' || ext === 'mjs' || ext === 'cjs') {
+    return `<svg width="15" height="15" viewBox="0 0 24 24"><text x="2" y="18" fill="#cbcb41" font-family="Segoe UI, sans-serif" font-size="13" font-weight="bold">JS</text></svg>`;
+  }
   if (isTsx) {
-    return `<svg width="15" height="15" viewBox="0 0 24 24" fill="#3178c6"><rect width="24" height="24" rx="3"/><text x="4" y="17" fill="#fff" font-family="Segoe UI, sans-serif" font-size="12" font-weight="bold">TS</text></svg>`;
+    return `<svg width="15" height="15" viewBox="0 0 24 24"><text x="2" y="18" fill="#519aba" font-family="Segoe UI, sans-serif" font-size="13" font-weight="bold">TS</text></svg>`;
   }
   if (isJson) {
     return `<svg width="15" height="15" viewBox="0 0 24 24" fill="#cbcb41"><text x="3" y="17" fill="#cbcb41" font-family="Consolas, monospace" font-size="14" font-weight="bold">{ }</text></svg>`;
@@ -306,7 +313,7 @@ export async function generateIdeHtml(
           onclick="window.switchIdeTab(${idx})"
           style="${
             isActive
-              ? 'background:#1e1e1e;border-top:1px solid #007acc;color:#ffffff;'
+              ? 'background:#1f1f1f;border-top:1px solid #0078d4;color:#ffffff;'
               : 'background:#181818;border-top:1px solid transparent;color:#9d9d9d;'
           }"
         >
@@ -378,11 +385,11 @@ export async function generateIdeHtml(
               ${
                 isLast
                   ? getFileIcon(ext)
-                  : '<span style="color:#dcb67a;font-size:11px;">📁</span>'
+                  : ''
               }
               <span>${escapeHtml(part)}</span>
             </span>
-            ${!isLast ? '<span class="breadcrumb-sep">&gt;</span>' : ''}
+            ${!isLast ? '<span class="breadcrumb-sep">&rsaquo;</span>' : ''}
           `;
         })
         .join('');
@@ -429,8 +436,7 @@ export async function generateIdeHtml(
     } else {
       treeNodes.push(`
         <div class="tree-node ${indentClass} folder-node">
-          <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#858585" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
-          <span class="folder-icon">📁</span>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#c5c5c5" stroke-width="1.3"><path d="m4 6 4 4 4-4"/></svg>
           <span class="folder-name">${escapeHtml(part)}</span>
         </div>
       `);
@@ -545,9 +551,9 @@ export async function generateIdeHtml(
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background-color: #1e1e1e;
+      background-color: #1f1f1f;
       color: #cccccc;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
       user-select: none;
       -webkit-user-select: none;
     }
@@ -738,31 +744,37 @@ export async function generateIdeHtml(
     .tree-node {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 3px 6px;
+      gap: 5px;
+      padding: 0 6px;
       color: #cccccc;
-      border-radius: 3px;
+      border-radius: 0;
       cursor: pointer;
       position: relative;
     }
-    .tree-node.pl-1 { padding-left: 18px; }
-    .tree-node.pl-2 { padding-left: 30px; }
-    .tree-node.pl-3 { padding-left: 42px; }
-    .tree-node.pl-4 { padding-left: 54px; }
+    .tree-node.pl-1 { padding-left: 14px; }
+    .tree-node.pl-2 { padding-left: 22px; }
+    .tree-node.pl-3 { padding-left: 30px; }
+    .tree-node.pl-4 { padding-left: 38px; }
+    /* Files sit under the chevron column, the way the real tree indents them. */
+    .tree-node.file-node { padding-left: 22px; }
+    .tree-node.file-node.pl-1 { padding-left: 30px; }
+    .tree-node.file-node.pl-2 { padding-left: 38px; }
+    .tree-node.file-node.pl-3 { padding-left: 46px; }
+    .tree-node.file-node.pl-4 { padding-left: 54px; }
     .tree-node.active-file {
       background: #04395e;
+      outline: 1px solid #0078d4;
+      outline-offset: -1px;
       color: #ffffff;
-      font-weight: 500;
     }
-    .folder-name { color: #cccccc; font-weight: 500; }
-    .folder-icon { font-size: 12px; }
+    .folder-name { color: #cccccc; }
     .file-icon { display: flex; align-items: center; }
     /* Editor Area */
     .editor-pane {
       display: flex;
       flex-direction: column;
       flex: 1;
-      background: #1e1e1e;
+      background: #1f1f1f;
       overflow: hidden;
       position: relative;
     }
@@ -808,8 +820,8 @@ export async function generateIdeHtml(
       color: #858585;
     }
     .breadcrumbs-bar {
-      height: 24px;
-      background: #1e1e1e;
+      height: 22px;
+      background: #1f1f1f;
       border-bottom: 1px solid #2b2b2b;
       padding: 0 16px;
       display: flex;
@@ -828,7 +840,9 @@ export async function generateIdeHtml(
       color: #cccccc;
     }
     .breadcrumb-sep {
-      color: #555555;
+      color: #6f6f6f;
+      font-size: 14px;
+      line-height: 1;
     }
     /* Code Viewer */
     .editor-body {
@@ -841,8 +855,8 @@ export async function generateIdeHtml(
       flex: 1;
       overflow-y: auto;
       padding: 10px 0 60px 0;
-      font-family: 'Cascadia Code', Consolas, 'Fira Code', 'Courier New', monospace;
-      font-size: 13.5px;
+      font-family: Consolas, 'Cascadia Code', 'Cascadia Mono', 'Fira Code', 'DejaVu Sans Mono', 'Liberation Mono', 'Droid Sans Mono', monospace;
+      font-size: 14px;
       line-height: 22px;
       -webkit-font-smoothing: antialiased;
     }
@@ -861,7 +875,7 @@ export async function generateIdeHtml(
      * it, and the code visibly stepped in and out at the range edges.
      */
     .code-line.highlighted {
-      box-shadow: inset 3px 0 0 0 #007acc;
+      /* A real selection has no gutter marker; the fill on the text is it. */
     }
     .line-num {
       width: 58px;
@@ -873,8 +887,7 @@ export async function generateIdeHtml(
       font-size: 12px;
     }
     .line-num.highlighted {
-      color: #ffffff;
-      font-weight: bold;
+      color: #cccccc;
     }
     .line-content {
       flex: 1;
@@ -883,7 +896,7 @@ export async function generateIdeHtml(
       padding-right: 24px;
     }
     .line-content.highlighted {
-      color: #ffffff;
+      color: #d4d4d4;
     }
     /*
      * Hug the glyphs, the way an editor selection does, instead of flooding the
@@ -892,8 +905,8 @@ export async function generateIdeHtml(
      * indentation, which is part of the token stream.
      */
     .line-content.highlighted > span {
-      background: rgba(38, 79, 120, 0.75);
-      border-radius: 2px;
+      background: #264f78;
+      border-radius: 0;
       box-decoration-break: clone;
       -webkit-box-decoration-break: clone;
     }
@@ -934,8 +947,9 @@ export async function generateIdeHtml(
     /* Status Bar */
     .statusbar {
       height: 22px;
-      background: #007acc;
-      color: #ffffff;
+      background: #181818;
+      border-top: 1px solid #2b2b2b;
+      color: #cccccc;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1219,8 +1233,8 @@ export async function generateIdeHtml(
       for (var i = 0; i < tabs.length; i++) {
         if (i === idx) {
           tabs[i].classList.add('active');
-          tabs[i].style.background = '#1e1e1e';
-          tabs[i].style.borderTop = '1px solid #007acc';
+          tabs[i].style.background = '#1f1f1f';
+          tabs[i].style.borderTop = '1px solid #0078d4';
           tabs[i].style.color = '#ffffff';
         } else {
           tabs[i].classList.remove('active');
