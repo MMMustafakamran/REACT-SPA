@@ -7,7 +7,7 @@ import { SELECTORS } from '../config/selectors.config';
 import { captureConsole, type ConsoleEntry } from './console-capture';
 import { generateIdeHtml, type IdeTabConfig, type TerminalSessionConfig } from './ide/generator';
 import { humanClick, humanGlide, humanScrollDown, restCursorSomewhere, sleep } from './overlays/cursor';
-import { pause, seedTake } from './overlays/human';
+import { between, jitter, pause, seedTake } from './overlays/human';
 import { clickTaskbarApp, ensureOverlays, waitForHydration } from './overlays/taskbar';
 import { timeoutsFor } from './timeouts';
 import { type ActionContext, type PageRecordConfig, type RecorderTimeouts } from './types';
@@ -233,6 +233,57 @@ export class RecordingEngine {
     return savedFilename;
   }
 
+  /**
+   * Selects lines `from..to` of IDE view `idx` the way a person does: cursor
+   * to the start of the first line, press, drag down the lines, release. The
+   * highlight follows the cursor line by line (window.selectIdeLines in the
+   * IDE template). Returns the milliseconds it took, so the caller can take
+   * them out of the dwell that follows. Falls back to painting the range at
+   * once if the lines cannot be found, so a take never loses its highlight.
+   */
+  private async dragSelectSnippet(page: Page, idx: number, from: number, to: number): Promise<number> {
+    const started = Date.now();
+    const rowBox = async (n: number) => {
+      const row = page.locator(`#ide-view-${idx} .code-line[data-line="${n}"] .line-content`);
+      return (await row.isVisible({ timeout: 1500 }).catch(() => false)) ? row.boundingBox() : null;
+    };
+    const first = await rowBox(from);
+    const lastVisible = await rowBox(to);
+    const paint = (upTo: number) =>
+      page.evaluate(`window.selectIdeLines && window.selectIdeLines(${idx}, ${from}, ${upTo})`).catch(() => {});
+
+    if (!first) {
+      await paint(to);
+      await humanGlide(page, 520, 360, 18);
+      return Date.now() - started;
+    }
+
+    // Press at the start of the first line.
+    await humanGlide(page, first.x + 6, first.y + first.height / 2, 18);
+    await sleep(between(60, 140));
+    await page.evaluate(`(function(){var c=document.getElementById('playwright-virtual-mouse');if(c)c.style.transform='translate(-4px, -2px) scale(0.9)';})()`).catch(() => {});
+    await paint(from);
+
+    // Drag down: one visual step per line, faster on long ranges, a little
+    // uneven like a hand on a mouse. Whole selection bounded at ~1.2s.
+    const lines = Math.max(1, to - from);
+    const stepMs = Math.min(45, Math.max(14, 1100 / lines));
+    const bottom = lastVisible ? lastVisible.y + lastVisible.height / 2 : first.y + lines * first.height;
+    for (let n = from + 1; n <= to; n++) {
+      const t = (n - from) / lines;
+      const y = first.y + first.height / 2 + (bottom - first.y - first.height / 2) * t;
+      const x = first.x + 6 + Math.min(240, (n - from) * 9) + between(-3, 3);
+      await page.evaluate(`(function(){var c=document.getElementById('playwright-virtual-mouse');if(c){c.style.left='${x.toFixed(1)}px';c.style.top='${y.toFixed(1)}px';}})()`).catch(() => {});
+      await paint(n);
+      await sleep(jitter(stepMs, 0.35));
+    }
+
+    // Release, and leave the cursor resting on the selection.
+    await sleep(between(50, 110));
+    await page.evaluate(`(function(){var c=document.getElementById('playwright-virtual-mouse');if(c)c.style.transform='translate(-4px, -2px) scale(1)';})()`).catch(() => {});
+    return Date.now() - started;
+  }
+
   /** Closes the shared browser. Call once, after the last take. */
   async shutdown(): Promise<void> {
     const browser = this.browser;
@@ -380,18 +431,13 @@ export class RecordingEngine {
         await sleep(idx > 0 && !opts.clickTabs ? 500 : 300);
       }
 
-      // Scroll & highlight -- scoped to the tab that is now active.
+      // Scroll, then select the snippet by hand -- scoped to the active tab.
       await humanScrollCodeViewport(page, tabs[idx].startLine, idx);
-      const line = page.locator(`#ide-view-${idx} .code-line.highlighted`).first();
-      const box = (await line.isVisible({ timeout: 2000 }).catch(() => false))
-        ? await line.boundingBox()
-        : null;
-      if (box) {
-        await humanGlide(page, box.x + Math.min(box.width / 2, 420), box.y + Math.min(box.height / 2, 30), 18);
-      } else {
-        await humanGlide(page, 520, 360, 18);
-      }
-      await pause(opts.dwellMs);
+      const dragMs = await this.dragSelectSnippet(page, idx, tabs[idx].startLine, tabs[idx].endLine);
+      // The drag is time spent looking at the code, so it comes out of the
+      // dwell rather than on top of it; the take stays the same length.
+      await pause(Math.max(600, opts.dwellMs - dragMs));
+
     }
 
     // ----------------------------------------------------

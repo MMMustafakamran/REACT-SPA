@@ -336,22 +336,21 @@ export async function generateIdeHtml(
           const isCaretLine = lineNum === tab.startLine;
           const highlightedContent = highlightedLines[lIdx] ?? '&nbsp;';
 
-          const lineClass = isHighlighted
-            ? 'code-line highlighted'
-            : 'code-line';
-          const numClass = isHighlighted ? 'line-num highlighted' : 'line-num';
-          const textClass = isHighlighted
-            ? 'line-content highlighted'
-            : 'line-content';
-
+          // The snippet is marked, not yet highlighted: the recorder selects
+          // it on camera by dragging the cursor down the lines, adding the
+          // `highlighted` classes as it goes (window.selectIdeLines). A range
+          // already painted when the window fades in read as a slide, not as
+          // a person finding the code.
+          const snippetAttr = isHighlighted ? ' data-snippet="1"' : '';
           const caretHtml = isCaretLine ? '<span class="vs-caret"></span>' : '';
 
           return `
-            <div class="${lineClass}">
-              <div class="${numClass}">${lineNum}</div>
-              <div class="${textClass}"><span>${highlightedContent}${caretHtml}</span></div>
+            <div class="code-line" data-line="${lineNum}"${snippetAttr}>
+              <div class="line-num">${lineNum}</div>
+              <div class="line-content"><span>${highlightedContent}${caretHtml}</span></div>
             </div>
           `;
+
         })
         .join('');
 
@@ -1198,6 +1197,22 @@ export async function generateIdeHtml(
   <script>
     var IDE_TAB_STATUS = ${tabStatusJson};
 
+    // Paints the selection over lines from..to of view idx, the way a drag
+    // would: called once per line as the cursor passes it.
+    window.selectIdeLines = function(idx, from, to) {
+      var view = document.getElementById('ide-view-' + idx);
+      if (!view) return;
+      var rows = view.querySelectorAll('.code-line[data-line]');
+      for (var i = 0; i < rows.length; i++) {
+        var n = Number(rows[i].getAttribute('data-line'));
+        var on = n >= from && n <= to;
+        rows[i].classList.toggle('highlighted', on);
+        var num = rows[i].querySelector('.line-num');
+        var txt = rows[i].querySelector('.line-content');
+        if (num) num.classList.toggle('highlighted', on);
+        if (txt) txt.classList.toggle('highlighted', on);
+      }
+    };
     window.switchIdeTab = function(idx) {
       var tabs = document.querySelectorAll('.tab');
       var views = document.querySelectorAll('.editor-body-view');
