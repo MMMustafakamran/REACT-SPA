@@ -98,9 +98,14 @@ function listVideos(tracks) {
       for (const r of run.results ?? []) {
         videos.push({
           track,
+          id: r.id,
           filename: r.filename || '',
           status: !r.success ? 'failed' : r.warnings?.length ? 'pass-with-notes' : 'pass',
           notes: [...(r.warnings ?? []), ...(r.error ? [r.error] : [])],
+          // Raw fields ride along so compare-results.mjs can rebuild a
+          // signature from RUN_REPORT.<track>.json when the raw file is missing.
+          error: r.error ?? null,
+          consoleErrors: r.consoleErrors ?? [],
           sizeMB: r.filename ? sizeOf(path.join(VIDEOS_DIR, r.filename)) : 'n/a',
           fromRun: true,
         });

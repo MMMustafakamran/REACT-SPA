@@ -378,3 +378,96 @@ jobs:
           # are inputs to this, not results to keep beside it.
           delete-merged: true
           retention-days: 30
+
+      # ── 3. Compare with the reviewed baseline ─────────────────────────────
+      # The merge above is server-side, so nothing is on disk yet. Pull the
+      # merged package down, compare every <track>:<page> against
+      # autorecorder/expected-results.json, and re-upload the same artifact
+      # with RESULT_DIFF.{json,md} inside it. "Unchanged" means the package can
+      # be published without anyone watching the clips; anything else names the
+      # tracks and pages to look at. The compare step never fails the job: the
+      # package is uploaded either way, and the verdict travels with it.
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download the merged package
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ needs.drift.outputs.run_name }}
+          path: all-recordings
+
+      - name: Compare results with the reviewed baseline
+        id: compare
+        run: |
+          set +e
+          node ci/compare-results.mjs --dir all-recordings > /dev/null
+          code=$?
+          set -e
+          case $code in
+            0) verdict=unchanged ;;
+            3) verdict=changed ;;
+            *) verdict=error ;;
+          esac
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+          if [ -f all-recordings/RESULT_DIFF.md ]; then
+            cat all-recordings/RESULT_DIFF.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### 🔁 Result comparison produced no output (exit $code)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$verdict" = "changed" ]; then
+            echo "::warning title=Results changed::One or more tracks/pages differ from autorecorder/expected-results.json -- see the job summary"
+          fi
+
+      - name: Open or update the results issue
+        if: steps.compare.outputs.verdict == 'changed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let md = fs.readFileSync('all-recordings/RESULT_DIFF.md', 'utf8');
+            if (md.length > 55000) md = md.slice(0, 55000) + '\n... (truncated -- see RESULT_DIFF.md in the run package)';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Run **${{ needs.drift.outputs.run_name }}** differs from the reviewed baseline.`,
+              '',
+              md.replace(/^# .*\n/, ''),
+              '',
+              '**To clear:** watch the clips named above, then either fix the harness or',
+              'accept the new verdict with `node ci/compare-results.mjs --dir <package> --accept`,',
+              'edit the `reason` fields in `autorecorder/expected-results.json`, and commit.',
+              '',
+              `_Run: ${runUrl}_`,
+            ].join('\n');
+            const title = 'Results changed: tracks differ from the reviewed baseline';
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'results-changed',
+            });
+            const existing = open.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['results-changed'],
+              });
+            }
+
+      # Same name, same flat layout, now with RESULT_DIFF.{json,md} beside the
+      # reports so the download script can print one verdict per repo without
+      # opening anything. `overwrite` replaces the merged artifact in place, so
+      # the run page still shows exactly one package.
+      - name: Upload the package with the comparison verdict
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ needs.drift.outputs.run_name }}
+          path: all-recordings
+          overwrite: true
+          retention-days: 30
+          if-no-files-found: warn

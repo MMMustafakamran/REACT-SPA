@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "project": "React-SPA",
+  "updatedAt": "2026-09-11",
+  "ignoreNotes": [],
+  "pages": {
+    "npm:quickstart": {
+      "status": "pass",
+      "reason": "Tested-Report 2026-09-11: ✅"
+    },
+    "pnpm:quickstart": {
+      "status": "pass",
+      "reason": "Tested-Report 2026-09-11: ✅ (manual build-script approval needed on Windows — local-only note, CI on ubuntu passes unattended)"
+    },
+    "yarn:quickstart": {
+      "status": "pass",
+      "reason": "Tested-Report 2026-09-11: ✅"
+    }
+  },
+  "source": "Tested-Report.md §6 React SPA, 2026-09-11 (package React-SPA-11Sep2026-0951UTC)"
+}
