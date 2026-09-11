@@ -57,12 +57,37 @@ export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * How long the dead air in a take lasts, relative to the scripted beats.
+ *
+ * `AUTORECORD_PACE=0.8` makes every reading and thinking pause 20% shorter.
+ * It scales pauses only -- typing rhythm, mouse arcs, click holds and scroll
+ * bursts are untouched, so a faster take still moves like the same person, it
+ * just lingers less. Clamped so a typo cannot make a clip frantic or glacial.
+ */
+export const PACE: number = (() => {
+  const raw = Number(process.env.AUTORECORD_PACE);
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  return Math.min(1.5, Math.max(0.5, raw));
+})();
+
+/**
  * A reading or thinking pause. Every fixed `sleep(1500)` in a take used to be
  * exactly 1500ms in every clip; this is the same beat with a person's
- * variance on it.
+ * variance on it, scaled by `PACE`.
  */
 export function pause(ms: number, spread = 0.25): Promise<void> {
-  return sleep(jitter(ms, spread));
+  return sleep(jitter(ms * PACE, spread));
+}
+
+/**
+ * A scripted dwell between two things on screen -- "look at this for a
+ * moment, then move on". The fixed `sleep(N)` calls in the page handlers are
+ * this: waits with no condition behind them. `beat` gives them the same
+ * variance and `PACE` scaling as `pause`, with a narrower spread so a
+ * choreographed sequence keeps its shape.
+ */
+export function beat(ms: number): Promise<void> {
+  return sleep(jitter(ms * PACE, 0.15));
 }
 
 export interface TypeRhythm {

@@ -50,8 +50,16 @@ test('filter and bare words match id or name substrings', () => {
 
 test('limit truncates before sharding', () => {
   const { pages, shard } = selectPages(ALL, { limit: 3, shard: { index: 2, total: 2 } });
-  assert.deepEqual(pages.map((p) => p.id), ['headless-ui']);
-  assert.deepEqual(shard, { index: 2, total: 2, from: 2, to: 3 });
+  assert.deepEqual(pages.map((p) => p.id), ['slots']);
+  assert.deepEqual(shard, { index: 2, total: 2, positions: [2] });
+});
+
+test('shards are dealt round-robin so long pages at the end spread out', () => {
+  const s1 = selectPages(ALL, { shard: { index: 1, total: 2 } });
+  const s2 = selectPages(ALL, { shard: { index: 2, total: 2 } });
+  assert.deepEqual(s1.pages.map((p) => p.id), ['quickstart', 'headless-ui']);
+  assert.deepEqual(s2.pages.map((p) => p.id), ['slots', 'demo-npm']);
+  assert.deepEqual(s1.shard?.positions, [1, 3]);
 });
 
 test('a shard past the end is empty, not an error', () => {

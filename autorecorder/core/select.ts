@@ -12,7 +12,7 @@ import { type PageRecordConfig } from './types';
  *   bare words                 ids or names containing any of them
  *   nothing                    every page not in `excluded`
  *
- * Then `--limit` truncates and `--shard=K/N` takes one contiguous slice.
+ * Then `--limit` truncates and `--shard=K/N` keeps every Nth page starting at K.
  *
  * Naming a page explicitly always selects it, even when it is in `excluded`:
  * "record this specific thing" should record it and report what happens.
@@ -35,7 +35,7 @@ export interface SelectionRequest {
 export interface Selection {
   pages: PageRecordConfig[];
   /** Set when `--shard` was applied, for the log line. */
-  shard?: { index: number; total: number; from: number; to: number };
+  shard?: { index: number; total: number; positions: number[] };
 }
 
 const lower = (s: string): string => s.toLowerCase();
@@ -64,11 +64,18 @@ export function selectPages(all: PageRecordConfig[], req: SelectionRequest): Sel
 
   let shard: Selection['shard'];
   if (req.shard && req.shard.total > 0 && req.shard.index > 0 && req.shard.index <= req.shard.total) {
-    const chunk = Math.ceil(pages.length / req.shard.total);
-    const from = (req.shard.index - 1) * chunk;
-    const to = Math.min(from + chunk, pages.length);
-    pages = pages.slice(from, to);
-    shard = { ...req.shard, from, to };
+    // Dealt round-robin rather than cut into contiguous slices. The config
+    // lists pages in doc order, and the long ones (threads, intelligence,
+    // A2UI) sit at the end -- a contiguous cut handed all of them to the last
+    // worker, which then ran twice as long as the other two. Interleaving
+    // spreads them, with no knowledge of durations needed.
+    const positions: number[] = [];
+    pages = pages.filter((_, i) => {
+      const mine = i % req.shard!.total === req.shard!.index - 1;
+      if (mine) positions.push(i + 1);
+      return mine;
+    });
+    shard = { ...req.shard, positions };
   }
 
   return { pages, shard };

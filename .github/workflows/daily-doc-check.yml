@@ -11,16 +11,12 @@ name: Daily doc check and recording
 
 on:
   schedule:
-    # 05:27 UTC = 10:27 AM PKT (Asia/Karachi, UTC+5, no DST).
-    #
-    # Not 05:30, and emphatically not 06:00. GitHub's scheduler is best-effort
-    # and shared: on-the-hour and on-the-half-hour are the most contended slots
-    # on the platform, and runs queued there are routinely delayed by hours or
-    # dropped outright. This repo's own history showed a '0 6 * * *' cron firing
-    # at 17:11 UTC. An odd minute is materially more likely to fire near time.
-    #
-    # This still cannot GUARANTEE 10:30 AM PKT — no `schedule:` can. If exact
-    # timing ever matters, drive it externally via repository_dispatch.
+    # 4 AM PKT, in four waves twenty minutes apart across the twelve repos
+    # (23:04, 23:24, 23:44, 00:04 UTC) so they do not all land on the account's
+    # runner limit at the same minute -- when they did, the last workers queued
+    # for 38 minutes. GitHub's scheduler is best-effort: every cron here has
+    # fired three to six hours late. If exact timing ever matters, drive it
+    # externally via `gh workflow run`.
     - cron: '4 23 * * *'
   workflow_dispatch:
     inputs:
@@ -233,6 +229,9 @@ jobs:
       matrix:
         track: ${{ fromJSON(needs.drift.outputs.tracks) }}
     env:
+      # Reading and thinking pauses at 85% -- typing, mouse and scrolling are
+      # not scaled. See autorecorder/core/overlays/human.ts (PACE).
+      AUTORECORD_PACE: '0.85'
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v5
@@ -244,7 +243,19 @@ jobs:
       - name: Enable pnpm and yarn
         run: corepack enable
 
+      # The Chromium build is keyed on the installed playwright-core version,
+      # so it downloads once per Playwright release rather than once per track
+      # per day. The runner image already ships the system libraries, so on a
+      # hit nothing is installed at all.
+      - name: Cache the Playwright browser
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('autorecorder/package-lock.json') }}
+
       - name: Install Playwright Chromium and its system dependencies
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: |
           cd autorecorder
           npm install

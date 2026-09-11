@@ -1,5 +1,6 @@
 import { type Page } from 'playwright';
 import { SELECTORS } from '../config/selectors.config';
+import { fatalConsoleError } from './console-capture';
 import { humanClick, humanGlide, idleNudge, sleep } from './overlays/cursor';
 import { chance, humanType, pause } from './overlays/human';
 import { TIMEOUTS } from './timeouts';
@@ -119,6 +120,17 @@ export async function waitForAgentResponseCompletion(
       observed.startedAfterMs = Date.now() - startTime;
       observed.chars = status.len;
       break;
+    }
+
+    // The run has already told us the reply is not coming: the CopilotKit
+    // client logged that the agent run failed, or the request itself did.
+    // Sitting out the rest of the start window (30-90s per page, three to
+    // seven pages in a row on a bad morning) only delays the same verdict.
+    const fatal = fatalConsoleError(page);
+    if (fatal) {
+      throw new AgentSilentError(
+        `Agent run failed before any reply text appeared (${Math.round((Date.now() - startTime) / 1000)}s in): ${fatal}`,
+      );
     }
     await sleep(300);
   }

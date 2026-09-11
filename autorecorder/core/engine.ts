@@ -110,6 +110,13 @@ export class RecordingEngine {
   private readonly videosDir: string;
   private readonly rootDir: string;
   private readonly tempVideoDir: string;
+  /**
+   * One Chromium for the whole run. Every take used to launch and tear down
+   * its own browser, which cost about five seconds per page off camera; the
+   * context (and with it the video) is still fresh per take, so the clips are
+   * unchanged. `shutdown()` closes it once the suite is done.
+   */
+  private browser?: Browser;
 
   constructor(rootDir: string) {
     this.rootDir = rootDir;
@@ -131,14 +138,17 @@ export class RecordingEngine {
     context: BrowserContext;
     page: Page;
   }> {
-    const browser = await chromium.launch({
-      headless: false,
-      args: [
-        '--start-maximized',
-        '--force-dark-mode',
-        '--background-color=#1e1e1e',
-      ],
-    });
+    if (!this.browser || !this.browser.isConnected()) {
+      this.browser = await chromium.launch({
+        headless: false,
+        args: [
+          '--start-maximized',
+          '--force-dark-mode',
+          '--background-color=#1e1e1e',
+        ],
+      });
+    }
+    const browser = this.browser;
 
     const context = await browser.newContext({
       viewport: { width: 1920, height: 1080 },
@@ -210,7 +220,8 @@ export class RecordingEngine {
       }
     }
 
-    await browser.close().catch(() => {});
+    // The browser stays up for the next take; see `shutdown()`.
+    void browser;
 
     // Playwright's raw chunk lands here before saveAs moves it out. Nothing
     // should survive the run; left alone it accumulated one stray .webm per
@@ -220,6 +231,13 @@ export class RecordingEngine {
     } catch {}
 
     return savedFilename;
+  }
+
+  /** Closes the shared browser. Call once, after the last take. */
+  async shutdown(): Promise<void> {
+    const browser = this.browser;
+    this.browser = undefined;
+    if (browser) await browser.close().catch(() => {});
   }
 
   /**

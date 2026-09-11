@@ -1,7 +1,7 @@
 import { type Page } from 'playwright';
-import { between, chance, jitter, pause, rand, sleep } from './human';
+import { beat, between, chance, jitter, pause, rand, sleep } from './human';
 
-export { sleep };
+export { beat, sleep };
 
 let globalCursorX = 960;
 let globalCursorY = 540;

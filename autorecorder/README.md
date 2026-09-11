@@ -231,7 +231,9 @@ stay comparable frame for frame.
   typed quickly instead; that is the recorder recovering, not a performance.
 - **Scrolling** is in bursts: a few wheel notches, a reading pause, a few more,
   sometimes a nudge back up.
-- **Pauses** vary by about a quarter around their nominal length.
+- **Pauses** vary by about a quarter around their nominal length. They are
+  the only thing `AUTORECORD_PACE` scales (CI sets `0.85`): a reading or
+  thinking pause gets shorter, the typing, the mouse and the scrolling do not.
 - **The cursor** overshoots slightly on long travel and settles, hovers a
   variable moment before a click, drifts while a reply streams instead of
   freezing, and starts each take somewhere plausible rather than dead centre.

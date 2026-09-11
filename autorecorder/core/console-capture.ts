@@ -50,6 +50,7 @@ function shorten(text: string, max = 260): string {
  */
 export function captureConsole(page: Page): ConsoleCapture {
   const entries: ConsoleEntry[] = [];
+  ACTIVE.set(page, entries);
 
   const onConsole = (msg: { type: () => string; text: () => string; location: () => { url?: string; lineNumber?: number } }) => {
     const type = msg.type();
@@ -94,8 +95,33 @@ export function captureConsole(page: Page): ConsoleCapture {
       page.off('console', onConsole as never);
       page.off('pageerror', onPageError as never);
       page.off('requestfailed', onRequestFailed as never);
+      if (ACTIVE.get(page) === entries) ACTIVE.delete(page);
     },
   };
+}
+
+/** The live capture per page, so a wait deep in a handler can consult it. */
+const ACTIVE = new WeakMap<Page, ConsoleEntry[]>();
+
+/**
+ * Errors that mean the agent turn is already over -- the CopilotKit client
+ * reporting the run failed, the runtime endpoint refusing, or the model
+ * account rejecting the request. Anything else (a warning, an image 404) is
+ * not proof and the wait continues.
+ */
+const FATAL = /agent_run_failed|RUN_ERROR|insufficient_quota|no credits|invalid_api_key|Incorrect API key|\/api\/copilotkit\S* net::ERR/i;
+
+/**
+ * The first fatal error captured on `page` since capture began, or undefined.
+ *
+ * Only pages with an active `captureConsole` report anything; a handler that
+ * never started capture gets the old behaviour, waiting the full window.
+ */
+export function fatalConsoleError(page: Page): string | undefined {
+  const entries = ACTIVE.get(page);
+  if (!entries) return undefined;
+  const hit = entries.find((e) => e.level === 'error' && FATAL.test(e.text));
+  return hit?.text;
 }
 
 /**
