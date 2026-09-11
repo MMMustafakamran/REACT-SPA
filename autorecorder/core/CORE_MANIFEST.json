@@ -9,7 +9,7 @@
   "overlays/cursor.ts": "519d5dc05ce0f906",
   "overlays/human.ts": "aa9fff385bba0465",
   "overlays/notepad.ts": "2028da66cf4ad394",
-  "overlays/taskbar.ts": "83329c48b4285069",
+  "overlays/taskbar.ts": "8e23df722c91526c",
   "prewarm.ts": "ec794b197b456de2",
   "select.ts": "60efffca20c46b2c",
   "timeouts.ts": "ba4e52b004b4fa04",
