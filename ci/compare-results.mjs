@@ -27,6 +27,7 @@
  *   node ci/compare-results.mjs --dir all-recordings  # a downloaded package
  *   node ci/compare-results.mjs --seed                # write a baseline from this run
  *   node ci/compare-results.mjs --accept              # fold this run's changes into the baseline
+ *   node ci/compare-results.mjs --accept=untracked,notes-changed   # only those kinds
  *   node ci/compare-results.mjs --full                # treat not-run as a change
  */
 import fs from 'node:fs';
@@ -203,10 +204,16 @@ function main() {
   fs.writeFileSync(path.join(DIR, 'RESULT_DIFF.md'), md);
   console.log(md);
 
-  if (flag('accept')) {
+  // --accept takes everything; --accept=untracked,notes-changed takes only
+  // those kinds, so an environmental failure (a dead model key, say) is not
+  // folded into the baseline alongside the pages it did not affect.
+  const acceptKinds = opt('accept', null);
+  if (flag('accept') || acceptKinds) {
+    const only = acceptKinds ? new Set(acceptKinds.split(',').map((s) => s.trim())) : null;
     let n = 0;
     for (const r of rows) {
       if (r.change === 'unchanged' || r.change === 'not-run') continue;
+      if (only && !only.has(r.change)) continue;
       // Keep the reviewed reason on an existing entry; only new entries get the stock one.
       const prior = expected.pages[r.id]?.reason;
       const stamp = `accepted from run on ${diff.timestamp.slice(0, 10)} (${r.change})`;
