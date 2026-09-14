@@ -68,7 +68,7 @@ manager tab:
 | Scaffold            | `npm create vite@latest` (react-ts) | same                     | same                    |
 | Runtime + core      | `npm install @copilotkit/…`         | `pnpm add @copilotkit/…` | `yarn add @copilotkit/…`|
 | Dev deps            | `npm install -D tsx …`              | `pnpm add -D …`          | `yarn add -D …`         |
-| Runtime server      | `npx tsx server.ts` on :8200        | same                     | same                    |
+| Runtime server      | `npx tsx --env-file=.env server.ts` on :8200 | same                     | same                    |
 | App                 | `npm run dev` on :5173              | same                     | same                    |
 
 Only the install row differs. The page publishes three install tabs and then a

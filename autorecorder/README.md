@@ -37,8 +37,9 @@ run them one after the other, never at once.
 
 Only the *install* commands differ between tracks. The quickstart publishes
 three install tabs and then a single run step for all of them, so the yarn
-track starts its services with the page's own `npx tsx server.ts` and
-`npm run dev` rather than yarn equivalents the page never publishes.
+track starts its services with the page's own `npx tsx --env-file=.env
+server.ts` and `npm run dev` rather than yarn equivalents the page never
+publishes.
 
 ---
 
@@ -51,8 +52,8 @@ session the video replays:
 
 ```bash
 cd Npm/my-copilot-app
-export OPENAI_API_KEY=sk-...
-npx tsx ../../autorecorder/capture.ts npm-runtime -- npm exec tsx server.ts   # :8200
+printf 'OPENAI_API_KEY=sk-...\n' > .env   # the page's own file; gitignored
+npx tsx ../../autorecorder/capture.ts npm-runtime -- npm exec -- tsx --env-file=.env server.ts   # :8200
 
 # second terminal
 cd Npm/my-copilot-app

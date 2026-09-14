@@ -256,6 +256,33 @@ function installTrack(track) {
   runSync(install, dir, `Installing ${track} dependencies`);
 }
 
+/**
+ * Materialise the `.env` the page now tells the reader to create beside
+ * `server.ts`.
+ *
+ * The runtime command carries `--env-file=.env`, so the key has to be in that
+ * file — a standalone Node process does not read the ambient environment's
+ * `.env`, which is exactly the trap the page added the flag for. The file is
+ * gitignored (the page says to ignore it before creating it), so it cannot be
+ * committed; it is written here from whatever `OPENAI_API_KEY` preflight
+ * already loaded. An existing `.env` is left alone.
+ */
+function writeTrackEnvFile(track) {
+  const { dir } = TRACKS[track];
+  const envPath = path.join(dir, '.env');
+  if (fs.existsSync(envPath)) {
+    console.log(`   🔑 ${track}: using the .env already beside server.ts`);
+    return;
+  }
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.log(`   ⚠️ ${track}: no OPENAI_API_KEY to write into .env; the runtime will start without one.`);
+    return;
+  }
+  fs.writeFileSync(envPath, `OPENAI_API_KEY=${key}\n`);
+  console.log(`   🔑 ${track}: wrote .env beside server.ts for --env-file`);
+}
+
 async function runTrack(track, report) {
   const t = TRACKS[track];
   console.log('\n───────────────────────────────────────────────────────────────');
@@ -267,6 +294,8 @@ async function runTrack(track, report) {
   assertPortsFree();
 
   if (!skipInstall) installTrack(track);
+
+  writeTrackEnvFile(track);
 
   console.log(`\n▶ [Step] Starting Copilot Runtime (${t.runtime})...`);
   const runtime = startService(track, 'runtime', t.runtime);

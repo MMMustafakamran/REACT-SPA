@@ -58,9 +58,12 @@ const TRACK_DIRS: Record<Track, string> = {
  * publishes: what is under test is the page, not our idea of it.
  */
 const TRACK_CMDS: Record<Track, { dev: string; exec: string }> = {
-  npm: { dev: 'npm run dev', exec: 'npm exec tsx server.ts' },
-  pnpm: { dev: 'pnpm run dev', exec: 'pnpm exec tsx server.ts' },
-  yarn: { dev: 'npm run dev', exec: 'npx tsx server.ts' },
+  // The page's run step now carries `--env-file=.env`: the key lives in a file
+  // beside server.ts instead of an exported shell variable. `npm exec` needs
+  // `--` before the flag or npm reads it as its own.
+  npm: { dev: 'npm run dev', exec: 'npm exec -- tsx --env-file=.env server.ts' },
+  pnpm: { dev: 'pnpm run dev', exec: 'pnpm exec tsx --env-file=.env server.ts' },
+  yarn: { dev: 'npm run dev', exec: 'npx tsx --env-file=.env server.ts' },
 };
 
 export interface ProjectConfig {

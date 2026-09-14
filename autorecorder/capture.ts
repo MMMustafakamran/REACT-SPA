@@ -16,7 +16,7 @@
  * run a different command.
  *
  * ── Use ────────────────────────────────────────────────────────────────────
- *   npx tsx capture.ts npm-runtime -- npm exec tsx server.ts
+ *   npx tsx capture.ts npm-runtime -- npm exec -- tsx --env-file=.env server.ts
  *   npx tsx capture.ts npm-dev     -- npm run dev
  *
  * The first argument names the session file (`videos/logs/<name>.log`). Output

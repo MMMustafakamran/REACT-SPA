@@ -113,7 +113,7 @@ session while a different process answered the demo.
 ## Why yarn runs npm commands
 
 The quickstart publishes three **install** tabs and then a single run step for
-all of them — `npx tsx server.ts` and `npm run dev`, with no per-manager
+all of them — `npx tsx --env-file=.env server.ts` and `npm run dev`, with no per-manager
 variant. So the yarn track installs with `yarn` and runs with the page's own
 `npx`/`npm` commands.
 

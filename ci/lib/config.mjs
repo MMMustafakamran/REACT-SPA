@@ -41,14 +41,17 @@ export const TRACKS = {
   npm: {
     dir: path.join(ROOT_DIR, 'Npm', 'my-copilot-app'),
     install: 'npm install',
-    runtime: 'npm exec tsx server.ts',
+    // `--env-file=.env` is the page's own flag now; the key no longer comes
+    // from an exported shell variable. `npm exec` needs `--` before it, or npm
+    // eats the flag itself.
+    runtime: 'npm exec -- tsx --env-file=.env server.ts',
     dev: 'npm run dev',
     lockfile: 'package-lock.json',
   },
   pnpm: {
     dir: path.join(ROOT_DIR, 'Pnpm', 'my-copilot-app'),
     install: 'pnpm install',
-    runtime: 'pnpm exec tsx server.ts',
+    runtime: 'pnpm exec tsx --env-file=.env server.ts',
     dev: 'pnpm run dev',
     lockfile: 'pnpm-lock.yaml',
   },
@@ -57,7 +60,7 @@ export const TRACKS = {
     install: 'yarn install --non-interactive --network-timeout 600000',
     // Deliberately the page's own commands rather than yarn equivalents it
     // never publishes. See ci/README.md § "Why yarn runs npm commands".
-    runtime: 'npx tsx server.ts',
+    runtime: 'npx tsx --env-file=.env server.ts',
     dev: 'npm run dev',
     lockfile: 'yarn.lock',
   },

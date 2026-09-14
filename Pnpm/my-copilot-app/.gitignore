@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# The page tells you to ignore the runtime credential file before creating it.
+.env
