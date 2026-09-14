@@ -267,9 +267,16 @@ export async function generateIdeHtml(
   const tabSources = await Promise.all(
     tabsList.map(async (tab) => {
       const fullPath = join(rootDir, tab.filePath);
-      const raw = existsSync(fullPath)
-        ? readFileSync(fullPath, 'utf-8')
-        : '// File not found';
+      const missing = !existsSync(fullPath);
+      // Said out loud. A missing ideFile used to render one grey comment line
+      // and nothing else, which films as an empty editor -- indistinguishable
+      // from a short file. That is how every generated VERSIONS.md reached the
+      // demos blank: gitignored, not written on the --skip-install path, and
+      // no complaint from anywhere in the pipeline.
+      if (missing) {
+        console.warn(`   ⚠️  IDE file missing: ${tab.filePath} -- the clip will show an empty editor.`);
+      }
+      const raw = missing ? '// File not found' : readFileSync(fullPath, 'utf-8');
       // Normalize CRLF so a stray \r never lands inside a rendered code line.
       const code = raw.replace(/\r\n/g, '\n');
       const ext = basename(tab.filePath).split('.').pop() ?? '';
