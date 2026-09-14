@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "docsRoot": "https://docs.copilotkit.ai/react-spa",
-  "syncedAt": "2026-08-27T19:16:22.118Z",
+  "syncedAt": "2026-09-14T07:09:47.688Z",
   "pages": {
     "/react-spa": {
       "file": "react-spa.md",
-      "sha256": "8553a726b0b22d549e93f6b748e3e87d029889266e93025e0527029a0cb19b4a",
-      "bytes": 8969,
-      "lines": 201,
+      "sha256": "5a587dfc80f0b1ef375ed0659ac2c25223d3ce90f8f3984adc36f57a4c4f8268",
+      "bytes": 11011,
+      "lines": 242,
       "routes": [
         "/"
       ],
