@@ -12,7 +12,6 @@ tab the docs publish.
 | **Toolchain**       | Node 26.7.0 · npm 12.0.2 · pnpm 11.23.0                                       |
 | **Packages**        | `@copilotkit/react-core` ^1.70.3 · `@copilotkit/runtime` ^1.70.3               |
 | **Test status**     | All three tracks pass — install, runtime, app, and a streamed reply            |
-| **Recordings**      | `RSPA-{npm,pnpm,yarn}-01-Quickstart.webm`                                      |
 
 ---
 
@@ -43,9 +42,6 @@ React-SPA/
 │   └── pages/
 │       ├── react-spa.md                  the quickstart
 │       └── react-spa__using-these-docs.md
-├── autorecorder/          Playwright recorder — see its own README
-│   ├── config/            the adaptation surface (project, pages, selectors)
-│   └── videos/            output, gitignored
 ├── Npm/my-copilot-app/    quickstart followed with the npm tab
 ├── Pnpm/my-copilot-app/   quickstart followed with the pnpm tab
 ├── Yarn/my-copilot-app/   quickstart followed with the yarn tab
@@ -89,8 +85,7 @@ this README rather than being fixed silently in the track.
 
 All three tracks currently pass all four. The only edit any scaffold carries
 beyond the doc's own source is the `[!code highlight]` comments — the doc prints
-them on the same lines, and the recorder's doctor uses them to detect when its
-IDE line ranges have drifted.
+them on the same lines, so they make a diff against the page line up.
 
 ## Findings
 
@@ -117,11 +112,11 @@ completed properly (`Done in 112.78s`, 60 binaries, lockfile present). Worth
 knowing because the failure surfaces at the *run* step, several minutes after
 the install that actually caused it.
 
-**3 · The model call is the flakiest part of the run.** Two recordings failed
-with the agent never answering; both times the runtime log held
+**3 · The model call is the flakiest part of the run.** Two runs failed with
+the agent never answering; both times the runtime log held
 `AI_APICallError` → `ConnectTimeoutError` against
 `https://api.openai.com/v1/responses`. Nothing to do with the page — but it is
-the single most likely cause of a red daily run, so check the runtime log before
+the single most likely cause of a failed run, so check the runtime log before
 suspecting the docs.
 
 **4 · `/react-spa/quickstart` answers 200 with the root page's body.** It is not
@@ -152,31 +147,22 @@ unsaid. Nothing here is worked around in the scaffolds.
 `OPENAI_API_KEY` must be exported in the terminal running the runtime — the
 runtime process holds it, and it never reaches the browser.
 
-## Recording
+## Running a track
 
-`autorecorder/` films the quickstart in four beats: the doc page, then
-`server.ts` / `main.tsx` / `App.tsx` / `package.json` in a simulated VS Code,
-then that IDE's integrated terminal holding the two running services, then a
-live prompt in the app. One video per track, selected by
-`TRACK=npm|pnpm|yarn`. See [autorecorder/README.md](autorecorder/README.md).
+```bash
+cd Npm/my-copilot-app               # or Pnpm/, Yarn/
+npx tsx --env-file=.env server.ts   # runtime on :8200
+npm run dev                         # app on :5173, in a second terminal
+```
 
-Every clip states its versions, on both sides of rule 4. The `package.json` tab
-is the **declared** side — the `^1.70.3` ranges the doc's install step produced.
-The **installed** side is read out of that track's `node_modules` at record time
-by `autorecorder/core/versions.ts` and typed into Notepad over the finished
-demo, so a viewer can see which resolution the prompt actually ran against
-without trusting a number someone typed into a config. A package that is
-declared but absent from `node_modules` says so on camera and warns in the run
-summary.
+Every finding pins its versions on both sides. The **declared** side is the
+`^1.70.3` ranges the doc's install step wrote into `package.json`; the
+**installed** side is whatever that track's `node_modules` holds. A package that
+is declared but absent from `node_modules` is itself a finding.
 
-The terminal is a replay of a real session, not a mock-up: services are started
-through `autorecorder/capture.ts`, which records the process's own working
-directory, argv and stdout. There is no command string in any config for it to
-drift from.
-
-Because the recorder drives the app from the Vite origin, its demo step
-exercises the cross-origin call to `:8200` for real — the single thing this doc
-page exists to correct.
+Open the app at `http://localhost:5173`, not `:8200`: the chat must go from the
+Vite origin to the runtime, so a working reply exercises the cross-origin call
+for real — the single thing this doc page exists to correct.
 
 ## Re-syncing the docs
 

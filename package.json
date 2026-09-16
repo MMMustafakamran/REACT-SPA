@@ -3,13 +3,5 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Verification harness for the CopilotKit React SPA doc page",
-  "scripts": {
-    "automate": "node ci/automate.mjs",
-    "automate:pull": "node ci/automate.mjs --pull",
-    "automate:locked": "node ci/automate.mjs --use-lockfile",
-    "drift": "node ci/check-doc-drift.mjs",
-    "drift:sync": "node ci/check-doc-drift.mjs --update",
-    "run-name": "node ci/run-name.mjs"
-  }
+  "description": "Verification harness for the CopilotKit React SPA doc page"
 }

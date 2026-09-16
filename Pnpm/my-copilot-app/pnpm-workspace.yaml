@@ -5,15 +5,14 @@
 # `pnpm install` therefore failed on this scaffold -- esbuild (via vite) and
 # @scarf/scarf both have install scripts -- and it failed *after* printing
 # "dependencies: + @copilotkit/react-core ... done", so the log read like a
-# clean install right up to the exit code. That killed the pnpm track of every
-# CI run this pipeline has made.
+# clean install right up to the exit code.
 #
 # Why allow-all rather than an `allowBuilds:` allowlist: the npm and yarn tracks
 # run these same scripts unrestricted, because that is what `npm install` and
 # `yarn install` do. Approving a hand-kept list only under pnpm would mean the
 # three tracks no longer install the same tree, which is the point of running
 # three. It would also need re-approving whenever a transitive dependency adds
-# an install script -- breaking the nightly for a reason unrelated to the page.
+# an install script -- breaking the track for a reason unrelated to the page.
 #
 # Why here and not in package.json: the three scaffolds' package.json files are
 # byte-identical transcriptions of what the quickstart tells a reader to create,
@@ -31,8 +30,8 @@ dangerouslyAllowAllBuilds: true
 # range -- so pnpm took the newest anyway (the built-in default is non-strict)
 # and recorded the exception here.
 #
-# Left committed because CI's `pnpm install` would write the same list, and a
-# run that rewrites a tracked file is a diff to explain every morning. It goes
+# Left committed because every `pnpm install` would write the same list, and a
+# run that rewrites a tracked file is a diff to explain every time. It goes
 # stale harmlessly: it names exact versions, so it stops applying the moment the
 # ranges move again.
 #
