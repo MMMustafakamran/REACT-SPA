@@ -1,8 +1,6 @@
 # `ci/` — the verification pipeline
 
-Everything that checks, builds, starts and records this repo lives here. The
-only piece outside this folder is `.github/workflows/daily-doc-check.yml`,
-because GitHub requires that path.
+Everything that checks, builds, starts and records this repo lives here.
 
 ## Layout
 
