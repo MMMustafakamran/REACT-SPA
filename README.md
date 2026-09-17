@@ -42,6 +42,7 @@ React-SPA/
 │   └── pages/
 │       ├── react-spa.md                  the quickstart
 │       └── react-spa__using-these-docs.md
+├── ci/check-doc-drift.mjs doc drift check + snapshot sync (npm run drift)
 ├── Npm/my-copilot-app/    quickstart followed with the npm tab
 ├── Pnpm/my-copilot-app/   quickstart followed with the pnpm tab
 ├── Yarn/my-copilot-app/   quickstart followed with the yarn tab
@@ -164,14 +165,31 @@ Open the app at `http://localhost:5173`, not `:8200`: the chat must go from the
 Vite origin to the runtime, so a working reply exercises the cross-origin call
 for real — the single thing this doc page exists to correct.
 
-## Re-syncing the docs
+## Doc drift and re-syncing
 
-The snapshot is fetched from the undocumented raw-markdown endpoint: append
-`.md` to any doc URL. The corpus comes from `https://docs.copilotkit.ai/sitemap.xml`
-filtered to the `/react-spa/` prefix. A response that is not
-`text/markdown` or `text/plain` is the app shell, not the page — discard the run
-rather than committing it, or the baseline is destroyed and every page reports
-as rewritten next time.
+```bash
+npm run drift        # compare doc-snapshot/ with the live docs (no install needed)
+npm run drift:sync   # accept the live docs: rewrite pages/, manifest, CHANGELOG.md
+```
+
+`ci/check-doc-drift.mjs` does two things:
+
+- **Tracked pages.** It fetches each `manifest.pages` entry from the
+  undocumented raw-markdown endpoint (append `.md` to any doc URL), hashes it,
+  and classifies any change. **HIGH** means code blocks were added, removed or
+  edited, or the page 404s. **MEDIUM** means headings changed. **LOW** is
+  prose only.
+- **New pages.** It reads `https://docs.copilotkit.ai/sitemap.xml` for URLs
+  under `/react-spa` that the manifest does not track. A new page is drift:
+  add it to the snapshot, or list it in `sitemap.knownUnmapped` to
+  acknowledge it.
+
+Exit codes: `2` means HIGH/MEDIUM drift or a new page, `1` means a page or the
+sitemap could not be read, and `0` means clean or prose-only. A response that
+is not `text/markdown` or `text/plain` is the app shell, not the page. It
+counts as unreadable and is never written into the snapshot, because that
+would destroy the baseline and every page would report as rewritten next time.
+A 404 is reported but never deleted from the snapshot.
 
 Note that `/react-spa/quickstart` answers 200 with the same body as
 `/react-spa`. It is not in the sitemap and is not tracked as a separate page.

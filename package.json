@@ -3,5 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Verification harness for the CopilotKit React SPA doc page"
+  "description": "Verification harness for the CopilotKit React SPA doc page",
+  "scripts": {
+    "drift": "node ci/check-doc-drift.mjs",
+    "drift:sync": "node ci/check-doc-drift.mjs --update"
+  }
 }
